@@ -1,4 +1,3 @@
 # TensorFlowExamples
 
-markdown
-![Image](TensorFlowExamples/Images/TrainingPlot.png)
+![Image](TensorFlowExamples/Images/TrainingPlot.png?raw=true)
