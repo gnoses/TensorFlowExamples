@@ -1,4 +1,4 @@
 # TensorFlowExamples
 
- 
-![Bilby Stampede](TensorFlowExamples/Images/TrainingPlot.png)
+markdown
+![Image](TensorFlowExamples/Images/TrainingPlot.png)
