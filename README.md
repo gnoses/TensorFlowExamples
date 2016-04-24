@@ -1,3 +1,3 @@
 # TensorFlowExamples
 
-![Image](TensorFlowExamples/Images/TrainingPlot.png?raw=true)
+![Image](Images/TrainingPlot.png?raw=true)
