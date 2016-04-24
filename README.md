@@ -1,3 +1,4 @@
 # TensorFlowExamples
 
- TensorFlowExamples/Images/TrainingPlot.png 
+ 
+![Bilby Stampede](TensorFlowExamples/Images/TrainingPlot.png)
