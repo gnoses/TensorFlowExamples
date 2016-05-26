@@ -1,0 +1,302 @@
+"""
+Convolutional Encoder Decoder Net
+"""
+
+import tensorflow as tf
+import tensorflow.examples.tutorials.mnist.input_data as input_data
+import matplotlib.pyplot as plt
+import numpy as np
+import math
+from TrainingPlot import *
+from PIL import Image
+from batch_norm import batch_norm
+import cPickle as pkl
+import time
+width = 320
+height = 224
+classes = 22
+featureSize = 64
+
+# is_training = tf.placeholder(tf.int, name='is_training')
+
+# weights = {
+#     'ce1': tf.Variable(tf.random_normal([3, 3, 3, featureSize], stddev=0.1)),
+#     'ce2': tf.Variable(tf.random_normal([3, 3, featureSize, featureSize], stddev=0.1)),
+#     'ce3': tf.Variable(tf.random_normal([3, 3, featureSize, featureSize], stddev=0.1)),
+#     'cd3': tf.Variable(tf.random_normal([3, 3, featureSize, featureSize], stddev=0.1)),
+#     'cd2': tf.Variable(tf.random_normal([3, 3, featureSize, featureSize], stddev=0.1)),
+#     'cd1': tf.Variable(tf.random_normal([3, 3, featureSize, featureSize], stddev=0.1)),
+#     'dense_inner_prod': tf.Variable(tf.random_normal([1, 1, featureSize,classes], stddev=0.1))
+# }
+
+weights = {
+    'ce1': tf.get_variable("ce1",shape= [3, 3, 3, featureSize], initializer=tf.contrib.layers.xavier_initializer()),
+    'ce2': tf.get_variable("ce2",shape= [3, 3, featureSize, featureSize], initializer=tf.contrib.layers.xavier_initializer()),
+    'ce3': tf.get_variable("ce3",shape= [3, 3, featureSize, featureSize], initializer=tf.contrib.layers.xavier_initializer()),
+    'cd3': tf.get_variable("cd3",shape= [3, 3, featureSize, featureSize], initializer=tf.contrib.layers.xavier_initializer()),
+    'cd2': tf.get_variable("cd2",shape= [3, 3, featureSize, featureSize], initializer=tf.contrib.layers.xavier_initializer()),
+    'cd1': tf.get_variable("cd1",shape= [3, 3, featureSize, featureSize], initializer=tf.contrib.layers.xavier_initializer()),
+    'dense_inner_prod': tf.get_variable("dense_inner_prod",shape= [1, 1, featureSize,classes], initializer=tf.contrib.layers.xavier_initializer()),
+}
+
+def Model(X, W):
+
+
+    # Encoder
+    _ce1 = tf.nn.conv2d(X, W['ce1'], strides=[1, 1, 1, 1], padding='SAME')
+    _ce1 = tf.nn.batch_normalization(_ce1,0.001,1.0,0,1,0.0001)
+    _ce1 = tf.nn.relu(_ce1)
+    _ce1 = tf.nn.max_pool(_ce1, ksize=[1, 2, 2, 1],
+                        strides=[1, 2, 2, 1], padding='SAME')
+
+    _ce2 = tf.nn.conv2d(_ce1, W['ce2'], strides=[1, 1, 1, 1], padding='SAME')
+    _ce2 = tf.nn.batch_normalization(_ce2, 0.001, 1.0, 0, 1, 0.0001)
+    _ce2 = tf.nn.relu(_ce2)
+    _ce2 = tf.nn.max_pool(_ce2, ksize=[1, 2, 2, 1],
+                          strides=[1, 2, 2, 1], padding='SAME')
+
+    _ce3 = tf.nn.conv2d(_ce2, W['ce3'], strides=[1, 1, 1, 1], padding='SAME')
+    _ce3 = tf.nn.batch_normalization(_ce3, 0.001, 1.0, 0, 1, 0.0001)
+    _ce3 = tf.nn.relu(_ce3)
+    _ce3 = tf.nn.max_pool(_ce3, ksize=[1, 2, 2, 1],
+                          strides=[1, 2, 2, 1], padding='SAME')
+
+    # Decoder
+    _cd3 = tf.nn.conv2d_transpose(_ce3, W['cd3']
+                                   , tf.pack([tf.shape(X)[0], 56, 80, featureSize])
+                                   , strides=[1, 2, 2, 1], padding='SAME')
+    _cd3 = tf.nn.batch_normalization(_cd3, 0.001, 1.0, 0, 1, 0.0001)
+    _cd3 = tf.nn.relu(_cd3)
+
+    _cd2 = tf.nn.conv2d_transpose(_cd3, W['cd2']
+                                   , tf.pack([tf.shape(X)[0], 112, 160, featureSize])
+                                   , strides=[1, 2, 2, 1], padding='SAME')
+    _cd2 = tf.nn.batch_normalization(_cd2, 0.001, 1.0, 0, 1, 0.0001)
+    _cd2 = tf.nn.relu(_cd2)
+
+    _cd1 = tf.nn.conv2d_transpose(_cd2, W['cd1']
+                                   , tf.pack([tf.shape(X)[0], height, width, featureSize])
+                                   , strides=[1, 2, 2, 1], padding='SAME')
+    _cd1 = tf.nn.batch_normalization(_cd1, 0.001, 1.0, 0, 1.0, 0.0001)
+    _cd1 = tf.nn.relu(_cd1)
+
+    _out = tf.nn.conv2d(_cd1, W['dense_inner_prod'], strides=[1, 1, 1, 1], padding='SAME')
+
+
+    # print _ce1
+    # print _ce2
+    # print _ce3
+    #
+    # print _cd1
+    # print _cd2
+    # print _cd3
+    # print 'output shape' , _out.get_shape()
+    # exit(0)
+    return _out
+def DenseToOneHot(labels_dense, num_classes):
+    """Convert class labels from scalars to one-hot vectors."""
+    num_labels = labels_dense.shape[0]
+    index_offset = np.arange(num_labels) * num_classes
+    labels_one_hot = np.zeros((num_labels, num_classes))
+    labels_one_hot.flat[index_offset + labels_dense.ravel()] = 1
+    return labels_one_hot
+
+
+def LoadStanfordBG(filename):
+    class DataSets(object):
+        pass
+
+    datalistFile = open(filename, "rt")
+    fileList = datalistFile.readlines()
+    # print len(fileList)
+    data = None
+    label = None
+    # for i in range(0,len(fileList),2):
+    for i in range(0,100,2):
+        file = fileList[i].replace('\n','')
+        # print ('%d / %d' % (i, len(fileList)))
+        img = Image.open(file)
+        # img = img.resize((224, 224))
+        rgb = np.array(img).reshape(1,height,width,3)
+
+        # pixels = np.concatenate((np.array(rgb[0]).flatten(),np.array(rgb[1]).flatten(),np.array(rgb[2]).flatten()),axis=0)
+        # pixels = pixels.reshape(pixels.shape[0], 1)
+        if i == 0:
+            data = rgb
+        else:
+            data = np.concatenate((data, rgb),axis=0)
+
+        # file = fileList[i * 2 + 1].replace('\n', '')
+        # label = Image.open(file)
+
+        file = fileList[i+1].replace('\n', '')
+        # print i,file
+        img = Image.open(file)
+        labelImage = np.array(img).reshape(1, height, width,1)
+
+        if i == 0:
+            label = labelImage
+        else:
+            # print data.shape
+            label = np.concatenate((label, labelImage), axis=0)
+    labelOneHot = np.zeros((label.shape[0],label.shape[1], label.shape[2], classes))
+    for row in range(height):
+        for col in range(width):
+            single = label[:, row, col, 0]
+            # print single.shape
+            # exit(0)
+            # print index
+            oneHot = DenseToOneHot(single, classes)
+            labelOneHot[:, row, col, :] = oneHot
+    # for i in range(22):
+    #     plt.subplot(1,2,1)
+    #     plt.imshow(data[0,:,:,:].reshape(height,width,3))
+    #     plt.subplot(1, 2, 2)
+    #     plt.imshow(labelOneHot[0,:,:,i].reshape(height,width))
+    #     plt.show()
+    return [data.astype(np.float32)/255, label, labelOneHot.astype(np.float32)]
+
+# 1. data preparation for mnist
+
+startTime = time.time()
+print('Start data loading')
+trainData, trainLabel, trainLabelOneHot = LoadStanfordBG('./StanfordBG/train.txt')
+print('Finished in %d sec' % (time.time() - startTime))
+
+# Define functions
+x = tf.placeholder(tf.float32, [None, height,width,3])
+y = tf.placeholder(tf.float32, [None, height,width,classes])
+
+# input = tf.reshape(x, shape=[-1, 224, 320, 3])
+# output : m x height x width x classes
+pred = Model(x, weights)
+
+# cost
+# label = tf.reshape(y, shape=[-1, 224, 320, 1])
+# y_pred = tf.nn.softmax(tf.matmul(h_fc1_drop, W_fc2) + b_fc2)
+
+
+# y_pred = tf.nn.softmax(pred)
+
+
+# %% Define loss/eval/training functions
+# logPred = tf.log(pred)
+
+# softmax loss
+cost = tf.Variable(0.0)
+
+for row in range(height):
+    if (row % 50 == 0):
+        print 'build loss in ', row
+    for col in range(width):
+        cost += tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(pred[:,row,col,:], y[:,row,col,:]))
+
+# print loss
+# exit(0)
+# cost = cost / (row*col)
+# sme loss
+# cost = tf.reduce_sum(tf.square(y - pred))
+
+# accuracy
+# print yNumber, tf.argmax(pred, 3)
+predMax = tf.argmax(pred, 3)
+correct_pred = tf.equal(tf.argmax(y,3), tf.argmax(pred, 3)) # Count correct predictions
+
+
+acc_op = tf.reduce_mean(tf.cast(correct_pred, "float")) # Cast boolean to float to average
+
+learning_rate = 0.001
+
+optm = tf.train.AdamOptimizer(learning_rate).minimize(cost)
+
+# Fit all training data
+batch_size = 5
+n_epochs = 10000
+
+print("Strart training..")
+
+trainingPlot = TrainingPlot()
+trainingPlot.SetConfig(batch_size, 500, n_epochs)
+
+
+# you need to initialize all variables
+with tf.Session() as sess:
+    # you need to initialize all variables
+    tf.initialize_all_variables().run()
+
+    # create a log writer. run 'tensorboard --logdir=./logs/nn_logs'
+    saver = tf.train.Saver()
+    checkpoint = tf.train.latest_checkpoint(".")
+    if checkpoint:
+        print "Restoring from checkpoint", checkpoint
+        saver.restore(sess, checkpoint)
+    else:
+        print "Couldn't find checkpoint to restore from. Starting over."
+
+
+
+    for epoch_i in range(n_epochs):
+        trainLoss = []
+        trainAcc = []
+        # print epoch_i
+        for start, end in zip(range(0, len(trainData), batch_size), range(batch_size, len(trainData), batch_size)):
+            # sess.run(train_op, feed_dict={X: trX[start:end], p_keep_conv: 0.8})
+            # print start,end
+            batchData = trainData[start:end]
+            batchLabel = trainLabelOneHot[start:end]
+#             # print trainData.shape
+#             # print batchData.shape
+            sess.run(optm, feed_dict={x: batchData, y: batchLabel})
+            trainLoss.append(sess.run(cost, feed_dict={x: batchData, y: batchLabel}))
+            trainAcc.append(sess.run(acc_op, feed_dict={x: batchData, y: batchLabel}))
+            # print 'pred', sess.run(pred, feed_dict={x: batchData, y: batchLabel})
+            # print 'logPred', sess.run(logPred, feed_dict={x: batchData, y: batchLabel})
+
+
+
+        # tf.argmax(pred, 3)
+        # correct_pred = tf.equal(tf.argmax(y, 3), tf.argmax(pred, 3))  # Count correct predictions
+
+
+        trainLoss = np.mean(trainLoss)
+        trainAcc = np.mean(trainAcc)
+        #
+        if epoch_i % 500 == 0:
+            print "training on image #%d" % epoch_i
+            saver.save(sess, 'progress', global_step=epoch_i)
+        # n_examples = 100
+        # test_xs, _ = mnist.test.next_batch(n_examples)
+        # test_xs_norm = np.array([img - mean_img for img in test_xs])
+        # valLoss = sess.run(cost, feed_dict={x: test_xs_norm})
+        # trainAcc = 0
+        # valAcc = 0
+
+        # print (epoch_i,trainLoss)
+        trainingPlot.Add(epoch_i, trainLoss, 0, trainAcc, 0)
+        plt.figure(1)
+        trainingPlot.Show()
+
+        batchData = trainData[0:5]
+        batchLabel = trainLabelOneHot[0:5]
+
+        predMaxOut = sess.run(predMax, feed_dict={x: batchData, y: batchLabel})
+
+        # for i in range(22):
+        # show predicted image
+        plt.figure(2)
+        plt.subplot(2, 2, 1)
+        img = trainData[0, :, :, :].reshape(height, width, 3)
+        plt.imshow(img * 255)
+        plt.subplot(2, 2, 2)
+        img = trainLabel[0, :, :].reshape(height, width)
+        plt.imshow(img * 255)
+        plt.subplot(2, 2, 3)
+        plt.imshow(predMaxOut[0, :, :].reshape(height, width))
+        plt.pause(0.01)
+        plt.subplot(2, 2, 4)
+        plt.imshow(img - predMaxOut[0, :, :].reshape(height, width))
+        plt.pause(0.01)
+
+        # print(epoch_i, "/", n_epochs, loss)
+
+print("Training done. ")
