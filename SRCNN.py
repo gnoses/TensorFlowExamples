@@ -1,5 +1,8 @@
 """
-Convolutional Encoder Decoder Net
+SRCNN (http://mmlab.ie.cuhk.edu.hk/projects/SRCNN.html) implementation using Tensorflow
+
+by Sejin Park
+
 """
 
 import tensorflow as tf
