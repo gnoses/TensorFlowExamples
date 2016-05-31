@@ -3,6 +3,8 @@ SRCNN (http://mmlab.ie.cuhk.edu.hk/projects/SRCNN.html) implementation using Ten
 
 by Sejin Park
 
+dataset :Stanford BG (http://dags.stanford.edu/data/iccv09Data.tar.gz)
+
 """
 
 import tensorflow as tf
