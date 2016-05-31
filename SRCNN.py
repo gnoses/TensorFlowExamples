@@ -48,18 +48,13 @@ def Model(X, W):
     return output
 
 
-def LoadStanfordBG(filename):
+def LoadStanfordBG(path):
     class DataSets(object):
         pass
-
-    datalistFile = open(filename, "rt")
-    fileList = datalistFile.readlines()
+    fileList = glob.glob(path + '/*.png')
     # print len(fileList)
-    data = None
-    label = None
-    # for i in range(0,len(fileList),2):
-    for i in range(0,100,2):
-        file = fileList[i].replace('\n','')
+    for i, file in enumerate(fileList):
+    # for i in range(0,100,2):
         # print ('%d / %d' % (i, len(fileList)))
         img = Image.open(file)
         # img = img.resize((224, 224))
@@ -95,11 +90,10 @@ def LoadStanfordBG(filename):
 
     return dataLow, label
 
-# 1. data preparation for mnist
 
 startTime = time.time()
 print('Start data loading')
-trainData, trainLabel = LoadStanfordBG('./StanfordBG/train.txt')
+trainData, trainLabel = LoadStanfordBG('./StanfordBG/train/')
 print('Finished in %d sec' % (time.time() - startTime))
 
 # Define functions
@@ -179,8 +173,9 @@ with tf.Session() as sess:
 
         # show debugging image
         if (epoch_i % 10 == 0):
-            batchData = trainData[np.random.randint(0,m)]
-            batchLabel = trainLabel[np.random.randint(0,m)]
+            selected = np.random.randint(0,m)
+            batchData = trainData[selected].reshape([1,height,width,1])
+            batchLabel = trainLabel[selected].reshape([1,height,width,1])
 
             # predMaxOut = sess.run(predMax, feed_dict={x: batchData, y: batchLabel})
             # yMaxOut = sess.run(yMax, feed_dict={x: batchData, y: batchLabel})
@@ -193,16 +188,24 @@ with tf.Session() as sess:
             plt.figure(2)
             plt.clf()
             plt.subplot(2, 2, 1)
-            img = trainData[0, :, :, :].reshape(height, width, 1)
+            plt.title('Input')
+            img = batchData
             # print img.shape
             img = np.uint8(img.reshape(height,width) * 255)
             plt.imshow(Image.fromarray(img), cmap='Greys_r')
             plt.subplot(2, 2, 2)
+            plt.title('Label')
+            img = batchLabel
+            img = np.uint8(img.reshape(height, width) * 255)
+            plt.imshow(Image.fromarray(img), cmap='Greys_r')
+            plt.subplot(2, 2, 3)
+            plt.title('Output')
             img2 = predOut[0, :, :].reshape(height, width)
             img2 = np.uint8(img2.reshape(height, width) * 255)
 
             plt.imshow(Image.fromarray(img2), cmap='Greys_r')
-            plt.subplot(2, 2, 3)
+            plt.subplot(2, 2, 4)
+            plt.title('Error')
             plt.imshow(np.abs(img - img2))
             # plt.pause(0.01)
             # plt.subplot(2, 2, 4)
