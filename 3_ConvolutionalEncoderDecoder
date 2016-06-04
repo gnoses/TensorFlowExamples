@@ -6,8 +6,8 @@ import tensorflow as tf
 from TrainingPlot import *
 from PIL import Image
 import time
-width = 128
-height = 128
+width = 320
+height = 224
 classes = 22
 featureSize = 64
 
@@ -249,7 +249,7 @@ correct_pred = tf.equal(tf.argmax(y,3), tf.argmax(pred, 3)) # Count correct pred
 
 acc_op = tf.reduce_mean(tf.cast(correct_pred, "float")) # Cast boolean to float to average
 
-learning_rate = 0.001
+learning_rate = 0.0001
 
 optm = tf.train.AdamOptimizer(learning_rate).minimize(cost)
 
@@ -269,13 +269,13 @@ with tf.Session() as sess:
     tf.initialize_all_variables().run()
 
     # create a log writer. run 'tensorboard --logdir=./logs/nn_logs'
-    # saver = tf.train.Saver()
-    # checkpoint = tf.train.latest_checkpoint(".")
-    # if checkpoint:
-    #     print "Restoring from checkpoint", checkpoint
-    #     saver.restore(sess, checkpoint)
-    # else:
-    #     print "Couldn't find checkpoint to restore from. Starting over."
+    saver = tf.train.Saver()
+    checkpoint = tf.train.latest_checkpoint(".")
+    if checkpoint:
+        print "Restoring from checkpoint", checkpoint
+        saver.restore(sess, checkpoint)
+    else:
+        print "Couldn't find checkpoint to restore from. Starting over."
 
 
     for epoch_i in range(n_epochs):
@@ -323,12 +323,12 @@ with tf.Session() as sess:
         trainingPlot.Show()
 
         # save snapshot
-        # if epoch_i % 500 == 0:
-        #     print "training on image #%d" % epoch_i
-        #     saver.save(sess, 'progress', global_step=epoch_i)
+        if epoch_i % 500 == 0:
+            print "training on image #%d" % epoch_i
+            saver.save(sess, 'progress', global_step=epoch_i)
 
         # show debugging image
-        if (1):
+        if epoch_i % 50 == 0:
             batchData = trainData[0:5]
             batchLabel = trainLabelOneHot[0:5]
 
