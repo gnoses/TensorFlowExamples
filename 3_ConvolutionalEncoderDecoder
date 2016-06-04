@@ -11,17 +11,6 @@ height = 224
 classes = 22
 featureSize = 64
 
-# is_training = tf.placeholder(tf.int, name='is_training')
-
-# weights = {
-#     'ce1': tf.Variable(tf.random_normal([3, 3, 3, featureSize], stddev=0.1)),
-#     'ce2': tf.Variable(tf.random_normal([3, 3, featureSize, featureSize], stddev=0.1)),
-#     'ce3': tf.Variable(tf.random_normal([3, 3, featureSize, featureSize], stddev=0.1)),
-#     'cd3': tf.Variable(tf.random_normal([3, 3, featureSize, featureSize], stddev=0.1)),
-#     'cd2': tf.Variable(tf.random_normal([3, 3, featureSize, featureSize], stddev=0.1)),
-#     'cd1': tf.Variable(tf.random_normal([3, 3, featureSize, featureSize], stddev=0.1)),
-#     'dense_inner_prod': tf.Variable(tf.random_normal([1, 1, featureSize,classes], stddev=0.1))
-# }
 
 weights = {
     'ce1': tf.get_variable("ce1",shape= [7,7, 3, featureSize], initializer=tf.contrib.layers.xavier_initializer()),
@@ -210,35 +199,9 @@ y = tf.placeholder(tf.float32, [None, height,width,classes])
 # pred, mask1, mask2, mask3 = Model(x, weights)
 pred = Model(x, weights)
 
-# cost
-# label = tf.reshape(y, shape=[-1, 224, 320, 1])
-# y_pred = tf.nn.softmax(tf.matmul(h_fc1_drop, W_fc2) + b_fc2)
-
-
-# y_pred = tf.nn.softmax(pred)
-
-
-# %% Define loss/eval/training functions
-# logPred = tf.log(pred)
-
-# softmax loss
-# cost = tf.Variable(0.0)
-
-# for row in range(height):
-#     if (row % 50 == 0):
-#         print 'build loss in ', row
-#     for col in range(width):
-#         cost += tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(pred[:,row,col,:], y[:,row,col,:]))
-
 linearizePred = tf.reshape(pred,shape=[-1,classes])
 linearizeY = tf.reshape(y,shape=[-1,classes])
 cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(linearizePred, linearizeY))
-
-# print loss
-# exit(0)
-# cost = cost / (row*col)
-# sme loss
-# cost = tf.reduce_sum(tf.square(y - pred))
 
 # accuracy
 # print yNumber, tf.argmax(pred, 3)
@@ -308,16 +271,7 @@ with tf.Session() as sess:
 
         trainLoss = np.mean(trainLoss)
         trainAcc = np.mean(trainAcc)
-        #
 
-        # n_examples = 100
-        # test_xs, _ = mnist.test.next_batch(n_examples)
-        # test_xs_norm = np.array([img - mean_img for img in test_xs])
-        # valLoss = sess.run(cost, feed_dict={x: test_xs_norm})
-        # trainAcc = 0
-        # valAcc = 0
-
-        # print (epoch_i,trainLoss)
         trainingPlot.Add(epoch_i, trainLoss, 0, trainAcc, 0)
         plt.figure(1)
         trainingPlot.Show()
