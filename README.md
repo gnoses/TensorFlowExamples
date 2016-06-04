@@ -18,6 +18,7 @@ Down sampling (conovolution stride 2), Up sampling (transpose convolution with s
 
 Encoder decoder net for Semantic segmentation using pooling and unpooling
 
+![Image](https://github.com/gnoses/TensorFlowExamples/blob/master/Images/SemanticSegmentation.png)
 
 ## 4. Training mlp with training plot (without Tensorboard)
 
