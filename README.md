@@ -26,8 +26,8 @@ Instruction :
 - Download dataset and unpack into src folder
 - Run CreateDB script once in main code
 
-    \'CreateDB('CamVid/train')\'
-    \'CreateDB('CamVid/val')\'
+CreateDB('CamVid/train')
+CreateDB('CamVid/val')
     
 
 ## 4. Training mlp with training plot (without Tensorboard)
