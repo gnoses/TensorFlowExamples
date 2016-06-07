@@ -3,14 +3,20 @@ Convolutional Encoder Decoder Net
 """
 
 import tensorflow as tf
+import tensorflow.examples.tutorials.mnist.input_data as input_data
+import matplotlib.pyplot as plt
+import numpy as np
+import math
 from TrainingPlot import *
 from PIL import Image
+from batch_norm import batch_norm
+import cPickle as pkl
 import time
-width = 320
-height = 224
-classes = 22
+width = 128 # 320
+height = 128 # 224
+classes = 33
 featureSize = 64
-
+resumeTraining = False
 
 weights = {
     'ce1': tf.get_variable("ce1",shape= [7,7, 3, featureSize], initializer=tf.contrib.layers.xavier_initializer()),
@@ -21,6 +27,36 @@ weights = {
     'cd1': tf.get_variable("cd1",shape= [7,7, featureSize, featureSize], initializer=tf.contrib.layers.xavier_initializer()),
     'dense_inner_prod': tf.get_variable("dense_inner_prod",shape= [1, 1, featureSize,classes], initializer=tf.contrib.layers.xavier_initializer()),
 }
+
+def CreateDB(categoryName):
+    pathLoad1 = categoryName
+    pathLoad2 = categoryName + 'annot'
+    curPath = os.path.dirname(os.path.abspath(__file__))
+    print curPath
+    fileList1 = glob.glob(curPath + '/' + pathLoad1 + '/*.png')
+
+    #fileList2 = glob.glob(pathLoad2 + '/*.png')
+    #plt.ion()
+    trainFile = open(categoryName + '.txt','wt')
+    count = 0
+    occupancyList = []
+    for filename in fileList1:
+        img1 = Image.open(filename)
+        #filename2 = filename.replace('_IPMImg', '_IPMLabel')
+        filename2 = curPath + '/' + pathLoad2 + '/' + os.path.basename(filename)
+        img2 = Image.open(filename2)
+
+        print >> trainFile, filename
+        print >> trainFile, filename2
+
+        #cropimg.save(pathSave + '/' + filename)
+        #plt.title(pathCity)
+        #plt.imshow(cropimg)
+        #plt.show()
+        count += 1
+    print ('%d data list created' % count)
+    trainFile.close()
+    return occupancyList
 
 # input : [m x h x w x c]
 def Unpooling(inputOrg, size, mask=None):
@@ -93,7 +129,6 @@ def Model(X, W):
     encoder3 = tf.nn.max_pool(encoder3, ksize=[1, 2, 2, 1],
                           strides=[1, 2, 2, 1], padding='SAME')
 
-    print encoder3
     # Decoder
     # decoder3, mask3 = Unpooling(encoder3, [tf.shape(X)[0], height/8, width/8, featureSize])#, mask3)
     decoder3 = Unpooling(encoder3, [tf.shape(X)[0], height/8, width/8, featureSize])
@@ -137,8 +172,8 @@ def LoadStanfordBG(filename):
     # print len(fileList)
     data = None
     label = None
-    # for i in range(0,len(fileList),2):
-    for i in range(0,5,2):
+    for i in range(0,len(fileList),2):
+    # for i in range(0,50,2):
         file = fileList[i].replace('\n','')
         # print ('%d / %d' % (i, len(fileList)))
         img = Image.open(file)
@@ -184,9 +219,14 @@ def LoadStanfordBG(filename):
     return [data.astype(np.float32)/255, label, labelOneHot.astype(np.float32)]
 
 
+# Create DB (run once)
+if (0):
+    CreateDB('CamVid/train')
+    CreateDB('CamVid/val')
+
 startTime = time.time()
 print('Start data loading')
-trainData, trainLabel, trainLabelOneHot = LoadStanfordBG('/home/gnoses/Project/SegNet/data/CamVid/train.txt')
+trainData, trainLabel, trainLabelOneHot = LoadStanfordBG('/home/gnoses/Project/SegNet/data/LGADASDataset/train.txt')
 print('Finished in %d sec' % (time.time() - startTime))
 
 # Define functions
@@ -202,6 +242,7 @@ pred = Model(x, weights)
 linearizePred = tf.reshape(pred,shape=[-1,classes])
 linearizeY = tf.reshape(y,shape=[-1,classes])
 cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(linearizePred, linearizeY))
+
 
 # accuracy
 # print yNumber, tf.argmax(pred, 3)
@@ -232,13 +273,14 @@ with tf.Session() as sess:
     tf.initialize_all_variables().run()
 
     # create a log writer. run 'tensorboard --logdir=./logs/nn_logs'
-    saver = tf.train.Saver()
-    checkpoint = tf.train.latest_checkpoint(".")
-    if checkpoint:
-        print "Restoring from checkpoint", checkpoint
-        saver.restore(sess, checkpoint)
-    else:
-        print "Couldn't find checkpoint to restore from. Starting over."
+    if (resumeTraining):
+        saver = tf.train.Saver()
+        checkpoint = tf.train.latest_checkpoint(".")
+        if checkpoint:
+            print "Restoring from checkpoint", checkpoint
+            saver.restore(sess, checkpoint)
+        else:
+            print "Couldn't find checkpoint to restore from. Starting over."
 
 
     for epoch_i in range(n_epochs):
@@ -265,6 +307,7 @@ with tf.Session() as sess:
             # print 'logPred', sess.run(logPred, feed_dict={x: batchData, y: batchLabel})
 
 
+
         # tf.argmax(pred, 3)
         # correct_pred = tf.equal(tf.argmax(y, 3), tf.argmax(pred, 3))  # Count correct predictions
 
@@ -277,7 +320,7 @@ with tf.Session() as sess:
         trainingPlot.Show()
 
         # save snapshot
-        if epoch_i % 500 == 0:
+        if resumeTraining and epoch_i % 500 == 0:
             print "training on image #%d" % epoch_i
             saver.save(sess, 'progress', global_step=epoch_i)
 
@@ -295,15 +338,18 @@ with tf.Session() as sess:
             plt.figure(2)
             plt.clf()
             plt.subplot(2, 2, 1)
+            plt.title('Input')
             img = trainData[0, :, :, :].reshape(height, width, 3)
             plt.imshow(img * 255)
             plt.subplot(2, 2, 2)
+            plt.title('Ground truth')
             img = yMaxOut[0, :, :].reshape(height, width)
             plt.imshow(img)
             plt.subplot(2, 2, 3)
+            plt.title('Prediction')
             plt.imshow(predMaxOut[0, :, :].reshape(height, width))
-            plt.pause(0.01)
             plt.subplot(2, 2, 4)
+            plt.title('Error')
             plt.imshow(img - predMaxOut[0, :, :].reshape(height, width))
             plt.pause(0.01)
 
