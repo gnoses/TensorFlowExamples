@@ -20,14 +20,14 @@ Encoder decoder net for Semantic segmentation using pooling and unpooling
 
 ![Image](https://github.com/gnoses/TensorFlowExamples/blob/master/Images/SemanticSegmentation.png)
 
-Dataset : CamVid https://github.com/alexgkendall/SegNet-Tutorial/tree/master/CamVid from Cambridge University Machine Intelligence Lab
-
 Instruction :
-- Download dataset and unpack into src folder
-- Run CreateDB script once in main code
 
-CreateDB('CamVid/train')
-CreateDB('CamVid/val')
+Download dataset and unpack into src folder (CamVid https://github.com/alexgkendall/SegNet-Tutorial/tree/master/CamVid from Cambridge University Machine Intelligence Lab)
+
+Run CreateDB script once in main code
+
+    CreateDB('CamVid/train')
+    CreateDB('CamVid/val')
     
 
 ## 4. Training mlp with training plot (without Tensorboard)
