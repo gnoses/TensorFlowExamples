@@ -9,7 +9,6 @@ if (0):
 
 3. Reset condition to 0 and run training
 
-
 """
 
 import tensorflow as tf
@@ -226,6 +225,34 @@ def LoadTrainingData(filename,sampleCount):
     #     plt.show()
     return [data.astype(np.float32)/255, label, labelOneHot.astype(np.float32)]
 
+def ShowDebuggingPlot():
+    global batchData, batchLabel
+    batchData = trainData[0:5]
+    batchLabel = trainLabelOneHot[0:5]
+    predMaxOut = sess.run(predMax, feed_dict={x: batchData, y: batchLabel})
+    yMaxOut = sess.run(yMax, feed_dict={x: batchData, y: batchLabel})
+    # for i in range(22):
+    # show predicted image
+    plt.figure(2)
+    plt.clf()
+    plt.subplot(2, 2, 1)
+    plt.title('Input')
+    img = trainData[0, :, :, :].reshape(height, width, 3)
+    plt.imshow(img * 255)
+    plt.subplot(2, 2, 2)
+    plt.title('Ground truth')
+    img = yMaxOut[0, :, :].reshape(height, width)
+    plt.imshow(img)
+    plt.subplot(2, 2, 3)
+    plt.title('Prediction')
+    plt.imshow(predMaxOut[0, :, :].reshape(height, width))
+    plt.subplot(2, 2, 4)
+    plt.title('Error')
+    plt.imshow(img - predMaxOut[0, :, :].reshape(height, width))
+    plt.pause(0.01)
+
+
+# main body
 
 # Create DB (run once)
 if (0):
@@ -237,6 +264,8 @@ startTime = time.time()
 print('Start data loading')
 sampleCount = 10
 trainData, trainLabel, trainLabelOneHot = LoadTrainingData('./CamVid/train.txt', sampleCount)
+valData, valLabel, valLabelOneHot = LoadTrainingData('./CamVid/val.txt', 2)
+
 print('Finished in %d sec' % (time.time() - startTime))
 
 # Define functions
@@ -276,7 +305,6 @@ print("Strart training..")
 trainingPlot = TrainingPlot()
 trainingPlot.SetConfig(batch_size, 500, n_epochs)
 
-
 # you need to initialize all variables
 with tf.Session() as sess:
     # you need to initialize all variables
@@ -296,36 +324,23 @@ with tf.Session() as sess:
     for epoch_i in range(n_epochs):
         trainLoss = []
         trainAcc = []
-        # print epoch_i
         for start, end in zip(range(0, len(trainData), batch_size), range(batch_size, len(trainData), batch_size)):
-            # sess.run(train_op, feed_dict={X: trX[start:end], p_keep_conv: 0.8})
-            # print start,end
+
             batchData = trainData[start:end]
             batchLabel = trainLabelOneHot[start:end]
-#             # print trainData.shape
-#             # print batchData.shape
+
             sess.run(optm, feed_dict={x: batchData, y: batchLabel})
             trainLoss.append(sess.run(cost, feed_dict={x: batchData, y: batchLabel}))
             trainAcc.append(sess.run(acc_op, feed_dict={x: batchData, y: batchLabel}))
 
-            # mask1Out = sess.run(mask1, feed_dict={x: batchData, y: batchLabel})
-            # print 'mask1 : ', mask1Out
-            # mask2Out = sess.run(mask2, feed_dict={x: batchData, y: batchLabel})
-            # mask3Out = sess.run(mask2, feed_dict={x: batchData, y: batchLabel})
-
-            # print 'pred', sess.run(pred, feed_dict={x: batchData, y: batchLabel})
-            # print 'logPred', sess.run(logPred, feed_dict={x: batchData, y: batchLabel})
-
-
-
-        # tf.argmax(pred, 3)
-        # correct_pred = tf.equal(tf.argmax(y, 3), tf.argmax(pred, 3))  # Count correct predictions
-
-
         trainLoss = np.mean(trainLoss)
         trainAcc = np.mean(trainAcc)
 
-        trainingPlot.Add(epoch_i, trainLoss, 0, trainAcc, 0)
+        # run validation
+        valLoss = sess.run(cost, feed_dict={x: valData, y: valLabelOneHot})
+        valAcc = sess.run(acc_op, feed_dict={x: valData, y: valLabelOneHot})
+
+        trainingPlot.Add(epoch_i, trainLoss, valLoss, trainAcc, valAcc)
         plt.figure(1)
         trainingPlot.Show()
 
@@ -336,32 +351,7 @@ with tf.Session() as sess:
 
         # show debugging image
         if epoch_i % 50 == 0:
-            batchData = trainData[0:5]
-            batchLabel = trainLabelOneHot[0:5]
-
-            predMaxOut = sess.run(predMax, feed_dict={x: batchData, y: batchLabel})
-            yMaxOut = sess.run(yMax, feed_dict={x: batchData, y: batchLabel})
-
-            # for i in range(22):
-            # show predicted image
-
-            plt.figure(2)
-            plt.clf()
-            plt.subplot(2, 2, 1)
-            plt.title('Input')
-            img = trainData[0, :, :, :].reshape(height, width, 3)
-            plt.imshow(img * 255)
-            plt.subplot(2, 2, 2)
-            plt.title('Ground truth')
-            img = yMaxOut[0, :, :].reshape(height, width)
-            plt.imshow(img)
-            plt.subplot(2, 2, 3)
-            plt.title('Prediction')
-            plt.imshow(predMaxOut[0, :, :].reshape(height, width))
-            plt.subplot(2, 2, 4)
-            plt.title('Error')
-            plt.imshow(img - predMaxOut[0, :, :].reshape(height, width))
-            plt.pause(0.01)
+            ShowDebuggingPlot()
 
         # print(epoch_i, "/", n_epochs, loss)
 
