@@ -29,6 +29,10 @@ Run CreateDB script once in main code
     CreateDB('CamVid/train')
     CreateDB('CamVid/val')
     
+Training plot
+
+![Image](https://github.com/gnoses/TensorFlowExamples/blob/master/Images/CED_training_plot.png)
+
 
 ## 4. Training mlp with training plot (without Tensorboard)
 
