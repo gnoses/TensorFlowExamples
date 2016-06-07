@@ -1,5 +1,15 @@
 """
 Convolutional Encoder Decoder Net
+
+Usage :
+1. Download CamVid dataset ()
+2. Run createDB once (Set following codition to 1)
+# Create DB (run once)
+if (0):
+
+3. Reset condition to 0 and run training
+
+
 """
 
 import tensorflow as tf
