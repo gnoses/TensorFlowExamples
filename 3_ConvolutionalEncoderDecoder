@@ -3,13 +3,8 @@ Convolutional Encoder Decoder Net
 """
 
 import tensorflow as tf
-import tensorflow.examples.tutorials.mnist.input_data as input_data
-import matplotlib.pyplot as plt
-import numpy as np
-import math
 from TrainingPlot import *
 from PIL import Image
-from batch_norm import batch_norm
 import cPickle as pkl
 import time
 width = 128 # 320
@@ -163,7 +158,7 @@ def DenseToOneHot(labels_dense, num_classes):
     return labels_one_hot
 
 
-def LoadStanfordBG(filename):
+def LoadTrainingData(filename,sampleCount):
     class DataSets(object):
         pass
 
@@ -172,7 +167,10 @@ def LoadStanfordBG(filename):
     # print len(fileList)
     data = None
     label = None
-    for i in range(0,len(fileList),2):
+    if sampleCount == None:
+        sampleCount = len(fileList)
+
+    for i in range(0,sampleCount,2):
     # for i in range(0,50,2):
         file = fileList[i].replace('\n','')
         # print ('%d / %d' % (i, len(fileList)))
@@ -223,10 +221,12 @@ def LoadStanfordBG(filename):
 if (0):
     CreateDB('CamVid/train')
     CreateDB('CamVid/val')
+    exit(0)
 
 startTime = time.time()
 print('Start data loading')
-trainData, trainLabel, trainLabelOneHot = LoadStanfordBG('/home/gnoses/Project/SegNet/data/LGADASDataset/train.txt')
+sampleCount = 10
+trainData, trainLabel, trainLabelOneHot = LoadTrainingData('./CamVid/train.txt', sampleCount)
 print('Finished in %d sec' % (time.time() - startTime))
 
 # Define functions
