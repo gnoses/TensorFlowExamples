@@ -14,7 +14,7 @@ Dataset Stanford BG (http://dags.stanford.edu/data/iccv09Data.tar.gz)
 Down sampling (conovolution stride 2), Up sampling (transpose convolution with stride 2)
 
 
-## 3. Convolutional Encoder Decoder Net (On going)
+## 3. Convolutional Encoder Decoder Net
 
 Encoder decoder net for Semantic segmentation using pooling and unpooling
 
