@@ -20,6 +20,8 @@ Encoder decoder net for Semantic segmentation using pooling and unpooling
 
 ![Image](https://github.com/gnoses/TensorFlowExamples/blob/master/Images/SemanticSegmentation.png)
 
+Dataset : CamVid https://github.com/alexgkendall/SegNet-Tutorial/tree/master/CamVid from Cambridge University Machine Intelligence Lab
+
 ## 4. Training mlp with training plot (without Tensorboard)
 
 ![Image](Images/TrainingPlot.png?raw=true)
