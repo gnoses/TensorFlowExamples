@@ -2,8 +2,8 @@
 Convolutional Encoder Decoder Net
 
 Usage :
-1. Download CamVid dataset ()
-2. Run createDB once (Set following codition to 1)
+1. Download CamVid dataset (https://github.com/alexgkendall/SegNet-Tutorial/tree/master/CamVid)
+2. Run createDB once (Set following condition to 1)
 # Create DB (run once)
 if (0):
 
