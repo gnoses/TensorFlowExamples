@@ -2,7 +2,7 @@
 Convolutional Encoder Decoder Net
 
 Usage :
-1. Download CamVid dataset (https://github.com/alexgkendall/SegNet-Tutorial/tree/master/CamVid)
+1. Download CamVid dataset
 2. Run createDB once (Set following condition to 1)
 # Create DB (run once)
 if (0):
@@ -18,18 +18,21 @@ import cPickle as pkl
 import time
 width = 128 # 320
 height = 128 # 224
-classes = 33
+classes = 22
+kernelSize = 7
 featureSize = 64
 resumeTraining = False
 
 weights = {
-    'ce1': tf.get_variable("ce1",shape= [7,7, 3, featureSize], initializer=tf.contrib.layers.xavier_initializer()),
-    'ce2': tf.get_variable("ce2",shape= [7,7, featureSize, featureSize], initializer=tf.contrib.layers.xavier_initializer()),
-    'ce3': tf.get_variable("ce3",shape= [7,7, featureSize, featureSize], initializer=tf.contrib.layers.xavier_initializer()),
-    'cd3': tf.get_variable("cd3",shape= [7,7, featureSize, featureSize], initializer=tf.contrib.layers.xavier_initializer()),
-    'cd2': tf.get_variable("cd2",shape= [7,7, featureSize, featureSize], initializer=tf.contrib.layers.xavier_initializer()),
-    'cd1': tf.get_variable("cd1",shape= [7,7, featureSize, featureSize], initializer=tf.contrib.layers.xavier_initializer()),
-    'dense_inner_prod': tf.get_variable("dense_inner_prod",shape= [1, 1, featureSize,classes], initializer=tf.contrib.layers.xavier_initializer()),
+    'ce1': tf.get_variable("ce1",shape= [kernelSize,kernelSize, 3, featureSize]),
+    'ce2': tf.get_variable("ce2",shape= [kernelSize,kernelSize, featureSize, featureSize]),
+    'ce3': tf.get_variable("ce3",shape= [kernelSize,kernelSize, featureSize, featureSize]),
+    'ce4': tf.get_variable("ce4",shape= [kernelSize,kernelSize, featureSize, featureSize]),
+    'cd4': tf.get_variable("cd4",shape= [kernelSize,kernelSize, featureSize, featureSize]),
+    'cd3': tf.get_variable("cd3",shape= [kernelSize,kernelSize, featureSize, featureSize]),
+    'cd2': tf.get_variable("cd2",shape= [kernelSize,kernelSize, featureSize, featureSize]),
+    'cd1': tf.get_variable("cd1",shape= [kernelSize,kernelSize, featureSize, featureSize]),
+    'dense_inner_prod': tf.get_variable("dense_inner_prod",shape= [1, 1, featureSize,classes])
 }
 
 def CreateDB(categoryName):
@@ -58,6 +61,7 @@ def CreateDB(categoryName):
         #plt.imshow(cropimg)
         #plt.show()
         count += 1
+
     print ('%d data list created' % count)
     trainFile.close()
     return occupancyList
@@ -112,45 +116,55 @@ def Model(X, W):
     encoder1 = tf.nn.conv2d(X, W['ce1'], strides=[1, 1, 1, 1], padding='SAME')
     encoder1 = tf.nn.batch_normalization(encoder1,0.001,1.0,0,1,0.0001)
     encoder1 = tf.nn.relu(encoder1)
-    # dummy, mask1 = tf.nn.max_pool_with_argmax(encoder1, ksize=[1, 2, 2, 1],
-    #                           strides=[1, 2, 2, 1], padding='SAME',Targmax=tf.int32)
     encoder1 = tf.nn.max_pool(encoder1, ksize=[1, 2, 2, 1],
                         strides=[1, 2, 2, 1], padding='SAME')
+    # encoder1 = tf.nn.dropout(encoder1, 0.5)
 
     encoder2 = tf.nn.conv2d(encoder1, W['ce2'], strides=[1, 1, 1, 1], padding='SAME')
     encoder2 = tf.nn.batch_normalization(encoder2, 0.001, 1.0, 0, 1, 0.0001)
     encoder2 = tf.nn.relu(encoder2)
-    # dummy, mask2 = tf.nn.max_pool_with_argmax(encoder2, ksize=[1, 2, 2, 1],
-    #                           strides=[1, 2, 2, 1], padding='SAME',Targmax=tf.int32)
     encoder2 = tf.nn.max_pool(encoder2, ksize=[1, 2, 2, 1],
                           strides=[1, 2, 2, 1], padding='SAME')
+    # encoder2 = tf.nn.dropout(encoder2, 0.5)
 
     encoder3 = tf.nn.conv2d(encoder2, W['ce3'], strides=[1, 1, 1, 1], padding='SAME')
     encoder3 = tf.nn.batch_normalization(encoder3, 0.001, 1.0, 0, 1, 0.0001)
     encoder3 = tf.nn.relu(encoder3)
-    # dummy, mask3 = tf.nn.max_pool_with_argmax(encoder3, ksize=[1, 2, 2, 1],
-    #                       strides=[1, 2, 2, 1], padding='SAME',Targmax=tf.int32)
     encoder3 = tf.nn.max_pool(encoder3, ksize=[1, 2, 2, 1],
                           strides=[1, 2, 2, 1], padding='SAME')
+    # encoder3 = tf.nn.dropout(encoder3, 0.5)
+
+    encoder4 = tf.nn.conv2d(encoder3, W['ce4'], strides=[1, 1, 1, 1], padding='SAME')
+    encoder4 = tf.nn.batch_normalization(encoder4, 0.001, 1.0, 0, 1, 0.0001)
+    encoder4 = tf.nn.relu(encoder4)
+    encoder4 = tf.nn.max_pool(encoder4, ksize=[1, 2, 2, 1],
+                              strides=[1, 2, 2, 1], padding='SAME')
+    # encoder4 = tf.nn.dropout(encoder4, 0.5)
 
     # Decoder
-    # decoder3, mask3 = Unpooling(encoder3, [tf.shape(X)[0], height/8, width/8, featureSize])#, mask3)
+    decoder4 = Unpooling(encoder4, [tf.shape(X)[0], height / 16, width / 16, featureSize])
+    decoder4 = tf.nn.conv2d(decoder4, W['cd4'], strides=[1, 1, 1, 1], padding='SAME')
+    decoder4 = tf.nn.batch_normalization(decoder4, 0.001, 1.0, 0, 1, 0.0001)
+    decoder4 = tf.nn.relu(decoder4)
+    # decoder4 = tf.nn.dropout(decoder4, 0.5)
+
     decoder3 = Unpooling(encoder3, [tf.shape(X)[0], height/8, width/8, featureSize])
     decoder3 = tf.nn.conv2d(decoder3, W['cd3'], strides=[1, 1, 1, 1], padding='SAME')
     decoder3 = tf.nn.batch_normalization(decoder3, 0.001, 1.0, 0, 1, 0.0001)
     decoder3 = tf.nn.relu(decoder3)
+    # decoder3 = tf.nn.dropout(decoder3, 0.5)
 
-    # decoder2, mask2 = Unpooling(decoder3, [tf.shape(X)[0], height/4, width/4, featureSize])#, mask2)
-    decoder2 = Unpooling(decoder3, [tf.shape(X)[0], height/4, width/4, featureSize])#, mask2)
+    decoder2 = Unpooling(decoder3, [tf.shape(X)[0], height/4, width/4, featureSize])
     decoder2 = tf.nn.conv2d(decoder2, W['cd2'], strides=[1, 1, 1, 1], padding='SAME')
     decoder2 = tf.nn.batch_normalization(decoder2, 0.001, 1.0, 0, 1, 0.0001)
     decoder2 = tf.nn.relu(decoder2)
+    # decoder2 = tf.nn.dropout(decoder2, 0.5)
 
-    # decoder1, mask1 = Unpooling(decoder2, [tf.shape(X)[0], height / 2, width / 2, featureSize])#, mask1)
-    decoder1 = Unpooling(decoder2, [tf.shape(X)[0], height / 2, width / 2, featureSize])#, mask1)
+    decoder1 = Unpooling(decoder2, [tf.shape(X)[0], height / 2, width / 2, featureSize])
     decoder1 = tf.nn.conv2d(decoder1, W['cd1'], strides=[1, 1, 1, 1], padding='SAME')
     decoder1 = tf.nn.batch_normalization(decoder1, 0.001, 1.0, 0, 1.0, 0.0001)
     decoder1 = tf.nn.relu(decoder1)
+    # decoder1 = tf.nn.dropout(decoder1, 0.5)
 
     output = tf.nn.conv2d(decoder1, W['dense_inner_prod'], strides=[1, 1, 1, 1], padding='SAME')
 
@@ -167,7 +181,7 @@ def DenseToOneHot(labels_dense, num_classes):
     return labels_one_hot
 
 
-def LoadTrainingData(filename,sampleCount):
+def LoadTrainingData(filename,sampleCount=None):
     class DataSets(object):
         pass
 
@@ -262,9 +276,9 @@ if (0):
 
 startTime = time.time()
 print('Start data loading')
-sampleCount = 10
-trainData, trainLabel, trainLabelOneHot = LoadTrainingData('./CamVid/train.txt', sampleCount)
-valData, valLabel, valLabelOneHot = LoadTrainingData('./CamVid/val.txt', 2)
+sampleCount = 360
+trainData, trainLabel, trainLabelOneHot = LoadTrainingData('./CamVid/train.txt',sampleCount)
+valData, valLabel, valLabelOneHot = LoadTrainingData('./CamVid/val.txt',sampleCount/2)
 
 print('Finished in %d sec' % (time.time() - startTime))
 
@@ -311,14 +325,16 @@ with tf.Session() as sess:
     tf.initialize_all_variables().run()
 
     # create a log writer. run 'tensorboard --logdir=./logs/nn_logs'
-    if (resumeTraining):
-        saver = tf.train.Saver()
-        checkpoint = tf.train.latest_checkpoint(".")
-        if checkpoint:
-            print "Restoring from checkpoint", checkpoint
-            saver.restore(sess, checkpoint)
-        else:
-            print "Couldn't find checkpoint to restore from. Starting over."
+    # if (resumeTraining):
+    saver = tf.train.Saver()
+    checkpoint = tf.train.latest_checkpoint(".")
+    if resumeTraining == False:
+        print "Start from scratch"
+    elif  checkpoint:
+        print "Restoring from checkpoint", checkpoint
+        saver.restore(sess, checkpoint)
+    else:
+        print "Couldn't find checkpoint to restore from. Starting over."
 
 
     for epoch_i in range(n_epochs):
@@ -350,7 +366,7 @@ with tf.Session() as sess:
             saver.save(sess, 'progress', global_step=epoch_i)
 
         # show debugging image
-        if epoch_i % 50 == 0:
+        if epoch_i % 500 == 0:
             ShowDebuggingPlot()
 
         # print(epoch_i, "/", n_epochs, loss)
