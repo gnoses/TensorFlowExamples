@@ -2,7 +2,7 @@
 Convolutional Encoder Decoder Net
 
 Usage :
-1. Download CamVid dataset
+1. Download CamVid dataset ()
 2. Run createDB once (Set following condition to 1)
 # Create DB (run once)
 if (0):
@@ -21,7 +21,7 @@ height = 128 # 224
 classes = 22
 kernelSize = 7
 featureSize = 64
-resumeTraining = False
+resumeTraining = True
 
 weights = {
     'ce1': tf.get_variable("ce1",shape= [kernelSize,kernelSize, 3, featureSize]),
@@ -241,8 +241,9 @@ def LoadTrainingData(filename,sampleCount=None):
 
 def ShowDebuggingPlot():
     global batchData, batchLabel
-    batchData = trainData[0:5]
-    batchLabel = trainLabelOneHot[0:5]
+    index = np.random.randint(trainData.shape[0])
+    batchData = trainData[index:index+1]
+    batchLabel = trainLabelOneHot[index:index+1]
     predMaxOut = sess.run(predMax, feed_dict={x: batchData, y: batchLabel})
     yMaxOut = sess.run(yMax, feed_dict={x: batchData, y: batchLabel})
     # for i in range(22):
@@ -251,7 +252,7 @@ def ShowDebuggingPlot():
     plt.clf()
     plt.subplot(2, 2, 1)
     plt.title('Input')
-    img = trainData[0, :, :, :].reshape(height, width, 3)
+    img = trainData[index, :, :, :].reshape(height, width, 3)
     plt.imshow(img * 255)
     plt.subplot(2, 2, 2)
     plt.title('Ground truth')
@@ -361,7 +362,7 @@ with tf.Session() as sess:
         trainingPlot.Show()
 
         # save snapshot
-        if resumeTraining and epoch_i % 500 == 0:
+        if resumeTraining and epoch_i % 10 == 0:
             print "training on image #%d" % epoch_i
             saver.save(sess, 'progress', global_step=epoch_i)
 
