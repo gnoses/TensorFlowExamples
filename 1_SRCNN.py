@@ -6,19 +6,19 @@ by Sejin Park
 dataset :Stanford BG (http://dags.stanford.edu/data/iccv09Data.tar.gz)
 
 """
-
+from PIL import Image
 import tensorflow as tf
 import tensorflow.examples.tutorials.mnist.input_data as input_data
 import matplotlib.pyplot as plt
 import numpy as np
 import math
 from TrainingPlot import *
-from PIL import Image
+
 from batch_norm import batch_norm
 import cPickle as pkl
 import time
-width = 320
-height = 224
+width = 64
+height = 64
 
 featureSize = [64,32,1]
 filterSize = [9,1,5]
@@ -51,13 +51,13 @@ def Model(X, W):
 def LoadStanfordBG(path):
     class DataSets(object):
         pass
-    fileList = glob.glob(path + '/*.png')
+    fileList = glob.glob(path + '/*.jpg')
     # print len(fileList)
     for i, file in enumerate(fileList):
     # for i in range(0,100,2):
         # print ('%d / %d' % (i, len(fileList)))
         img = Image.open(file)
-        # img = img.resize((224, 224))
+        img = img.resize((width, height))
         rgb = np.array(img).reshape(1,height,width,3)
 
         # pixels = np.concatenate((np.array(rgb[0]).flatten(),np.array(rgb[1]).flatten(),np.array(rgb[2]).flatten()),axis=0)
@@ -75,8 +75,8 @@ def LoadStanfordBG(path):
     # data = np.array(data[:,:,0])
     for i in range(data.shape[0]):
         imgHigh = Image.fromarray(data[i,:,:,0].reshape([height,width]))
-        scale = 3.0
-        imgLow = imgHigh.resize((np.uint8(width/3.0),np.uint8(height/3.0)), Image.BICUBIC)
+        scale = 2.0
+        imgLow = imgHigh.resize((np.uint8(width/scale),np.uint8(height/scale)), Image.BICUBIC)
         imgLow = imgLow.resize((width, height), Image.BICUBIC)
 
 
@@ -93,7 +93,7 @@ def LoadStanfordBG(path):
 
 startTime = time.time()
 print('Start data loading')
-trainData, trainLabel = LoadStanfordBG('./StanfordBG/train/')
+trainData, trainLabel = LoadStanfordBG('./StanfordBG/images/')
 print('Finished in %d sec' % (time.time() - startTime))
 
 # Define functions
