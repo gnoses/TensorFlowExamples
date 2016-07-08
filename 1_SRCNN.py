@@ -19,48 +19,6 @@ height = 128
 
 weights = []
 
-# input : [m x h x w x c]
-def Unpooling(inputOrg, size, mask=None):
-    # m, c, h, w order
-    # print 'start unpooling'
-    # size = tf.shape(inputOrg)
-    m = size[0]
-    h = size[1]
-    w = size[2]
-    c = size[3]
-    input = tf.transpose(inputOrg, [0, 3, 1, 2])
-    # print input.get_shape()
-    x = tf.reshape(input, [-1, 1])
-    k = np.float32(np.array([1.0, 1.0]).reshape([1,-1]))
-    # k = tf.Variable([1.0, 1.0],name="weights")
-    # k = tf.reshape(k,[1,-1])
-    # k = np.array(k).reshape([1, -1])
-    output = tf.matmul(x, k)
-    output = tf.reshape(output,[-1, c, h, w * 2])
-    # m, c, w, h
-    xx = tf.transpose(output, [0, 1, 3, 2])
-    xx = tf.reshape(xx,[-1, 1])
-    # print xx.shape
-
-    output = tf.matmul(xx, k)
-    # m, c, w, h
-    output = tf.reshape(output, [-1, c, w * 2, h * 2])
-    output = tf.transpose(output, [0, 3, 2, 1])
-    # print mask
-    outshape = tf.pack([m, h * 2, w * 2, c])
-
-    if mask != None:
-        dense_mask = tf.sparse_to_dense(mask, outshape, output, 0)
-        # print dense_mask
-        # print 'output',output
-        # print 'mask',mask
-        # print dense_mask
-            # output = tf.mul(output, mask)
-
-        return output, dense_mask
-    else:
-        return output
-
 
 def CreateWeight(kernelSize, inputSize, outputSize):
     name = 'w%d' % len(weights)
@@ -77,21 +35,9 @@ def ConvBNRelu(input, kernelSize, outputSize):
 
 def ModernModel(X, W):
     conv1 = ConvBNRelu(X, 3, 64)
-    conv1 = tf.nn.max_pool(conv1, ksize=[1, 2, 2, 1],
-                              strides=[1, 2, 2, 1], padding='SAME')
-    # encoder1 = tf.nn.dropout(encoder1, 0.5)
-
     conv2 = ConvBNRelu(conv1, 3, 64)
-    conv2 = tf.nn.max_pool(conv2, ksize=[1, 2, 2, 1],
-                           strides=[1, 2, 2, 1], padding='SAME')
-    # encoder2 = tf.nn.dropout(encoder2, 0.5)
-
-    conv3 = Unpooling(conv2, [tf.shape(X)[0], height / 4, width / 4, 64])
-    conv3 = ConvBNRelu(conv3, 3, 64)
-    # encoder3 = tf.nn.dropout(encoder3, 0.5)
-
-    conv4 = Unpooling(conv3, [tf.shape(X)[0], height / 2, width / 2, 64])
-    conv4 = ConvBNRelu(conv4, 3, 64)
+    conv3 = ConvBNRelu(conv2, 3, 64)
+    conv4 = ConvBNRelu(conv3, 3, 64)
     # encoder4 = tf.nn.dropout(encoder4, 0.5)
 
     weights.append(CreateWeight(3, 64, 1))
