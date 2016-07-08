@@ -14,50 +14,105 @@ import numpy as np
 import math
 from TrainingPlot import *
 
-from batch_norm import batch_norm
-import cPickle as pkl
-import time
-width = 64
-height = 64
+width = 128
+height = 128
 
-featureSize = [64,32,1]
-filterSize = [9,1,5]
+weights = []
 
-weights = {
-    'ce1': tf.get_variable("ce1",shape= [filterSize[0],filterSize[0], 1, featureSize[0] ], initializer=tf.contrib.layers.xavier_initializer()),
-    'ce2': tf.get_variable("ce2",shape= [filterSize[1],filterSize[1], featureSize[0], featureSize[1]], initializer=tf.contrib.layers.xavier_initializer()),
-    'ce3': tf.get_variable("ce3",shape= [filterSize[2],filterSize[2], featureSize[1], 1], initializer=tf.contrib.layers.xavier_initializer()),
-    # 'ce4': tf.get_variable("ce4",shape= [filterSize[0],filterSize, featureSize[2], 1], initializer=tf.contrib.layers.xavier_initializer()),
-    'b1': tf.get_variable("b1",shape= [1]),
-    'b2': tf.get_variable("b2",shape= [1]),
-    'b3': tf.get_variable("b3",shape= [1])
-}
+# input : [m x h x w x c]
+def Unpooling(inputOrg, size, mask=None):
+    # m, c, h, w order
+    # print 'start unpooling'
+    # size = tf.shape(inputOrg)
+    m = size[0]
+    h = size[1]
+    w = size[2]
+    c = size[3]
+    input = tf.transpose(inputOrg, [0, 3, 1, 2])
+    # print input.get_shape()
+    x = tf.reshape(input, [-1, 1])
+    k = np.float32(np.array([1.0, 1.0]).reshape([1,-1]))
+    # k = tf.Variable([1.0, 1.0],name="weights")
+    # k = tf.reshape(k,[1,-1])
+    # k = np.array(k).reshape([1, -1])
+    output = tf.matmul(x, k)
+    output = tf.reshape(output,[-1, c, h, w * 2])
+    # m, c, w, h
+    xx = tf.transpose(output, [0, 1, 3, 2])
+    xx = tf.reshape(xx,[-1, 1])
+    # print xx.shape
+
+    output = tf.matmul(xx, k)
+    # m, c, w, h
+    output = tf.reshape(output, [-1, c, w * 2, h * 2])
+    output = tf.transpose(output, [0, 3, 2, 1])
+    # print mask
+    outshape = tf.pack([m, h * 2, w * 2, c])
+
+    if mask != None:
+        dense_mask = tf.sparse_to_dense(mask, outshape, output, 0)
+        # print dense_mask
+        # print 'output',output
+        # print 'mask',mask
+        # print dense_mask
+            # output = tf.mul(output, mask)
+
+        return output, dense_mask
+    else:
+        return output
 
 
-def Model(X, W):
+def CreateWeight(kernelSize, inputSize, outputSize):
+    name = 'w%d' % len(weights)
+    return (tf.get_variable(name, shape=[kernelSize, kernelSize, inputSize, outputSize]))
 
-    # Encoder
-    encoder1 = tf.add(tf.nn.conv2d(X, W['ce1'], strides=[1, 1, 1, 1], padding='SAME'),W['b1'])
-    encoder1 = tf.nn.relu(encoder1)
+# input : [
+def ConvBNRelu(input, kernelSize, outputSize):
+    inputSize = input.get_shape()[3].value
+    # print type(inputSize)
+    weights.append(CreateWeight(kernelSize, inputSize, outputSize))
+    conv = tf.nn.conv2d(input, weights[-1], strides=[1, 1, 1, 1], padding='SAME')
+    conv = tf.nn.batch_normalization(conv, 0.001, 1.0, 0, 1, 0.0001)
+    return tf.nn.relu(conv)
 
-    encoder2 = tf.add(tf.nn.conv2d(encoder1, W['ce2'], strides=[1, 1, 1, 1], padding='SAME'), W['b2'])
-    encoder2 = tf.nn.relu(encoder2)
+def ModernModel(X, W):
+    conv1 = ConvBNRelu(X, 3, 64)
+    conv1 = tf.nn.max_pool(conv1, ksize=[1, 2, 2, 1],
+                              strides=[1, 2, 2, 1], padding='SAME')
+    # encoder1 = tf.nn.dropout(encoder1, 0.5)
 
-    output = tf.add(tf.nn.conv2d(encoder2, W['ce3'], strides=[1, 1, 1, 1], padding='SAME'), W['b3'])
+    conv2 = ConvBNRelu(conv1, 3, 64)
+    conv2 = tf.nn.max_pool(conv2, ksize=[1, 2, 2, 1],
+                           strides=[1, 2, 2, 1], padding='SAME')
+    # encoder2 = tf.nn.dropout(encoder2, 0.5)
+
+    conv3 = Unpooling(conv2, [tf.shape(X)[0], height / 4, width / 4, 64])
+    conv3 = ConvBNRelu(conv3, 3, 64)
+    # encoder3 = tf.nn.dropout(encoder3, 0.5)
+
+    conv4 = Unpooling(conv3, [tf.shape(X)[0], height / 2, width / 2, 64])
+    conv4 = ConvBNRelu(conv4, 3, 64)
+    # encoder4 = tf.nn.dropout(encoder4, 0.5)
+
+    weights.append(CreateWeight(3, 64, 1))
+    output = tf.nn.conv2d(conv4, weights[-1], strides=[1, 1, 1, 1], padding='SAME')
 
     return output
 
-
-def LoadStanfordBG(path):
+def LoadStanfordBG(path, scale):
     class DataSets(object):
         pass
     fileList = glob.glob(path + '/*.jpg')
     # print len(fileList)
+
+
     for i, file in enumerate(fileList):
-    # for i in range(0,100,2):
+        # if (i>10):
+        #     break
         # print ('%d / %d' % (i, len(fileList)))
         img = Image.open(file)
         img = img.resize((width, height))
+
         rgb = np.array(img).reshape(1,height,width,3)
 
         # pixels = np.concatenate((np.array(rgb[0]).flatten(),np.array(rgb[1]).flatten(),np.array(rgb[2]).flatten()),axis=0)
@@ -75,8 +130,7 @@ def LoadStanfordBG(path):
     # data = np.array(data[:,:,0])
     for i in range(data.shape[0]):
         imgHigh = Image.fromarray(data[i,:,:,0].reshape([height,width]))
-        scale = 2.0
-        imgLow = imgHigh.resize((np.uint8(width/scale),np.uint8(height/scale)), Image.BICUBIC)
+        imgLow = imgHigh.resize((np.uint16(width/scale),np.uint16(height/scale)), Image.BICUBIC)
         imgLow = imgLow.resize((width, height), Image.BICUBIC)
 
 
@@ -87,25 +141,25 @@ def LoadStanfordBG(path):
         # plt.subplot(1, 2, 2)
         # plt.imshow(label[i,:,:,0])
         # plt.show()
-
-    return dataLow, label
-
+    residual = label - dataLow
+    return dataLow, residual, label
 
 startTime = time.time()
 print('Start data loading')
-trainData, trainLabel = LoadStanfordBG('./StanfordBG/images/')
+trainData, trainLabel, trainLabelOriginal = LoadStanfordBG('StanfordBG/images/', scale = 2.0)
 print('Finished in %d sec' % (time.time() - startTime))
 
 # Define functions
 x = tf.placeholder(tf.float32, [None, height,width,1])
 y = tf.placeholder(tf.float32, [None, height,width,1])
 
-pred = Model(x, weights)
+# pred = Model(x, weights)
+pred = ModernModel(x, weights)
 
 # cost
 cost = tf.reduce_mean(tf.pow(pred - y, 2))
 
-learning_rate = 0.001
+learning_rate = 0.0001
 
 optm = tf.train.AdamOptimizer(learning_rate).minimize(cost)
 
@@ -117,6 +171,51 @@ print("Strart training..")
 
 trainingPlot = TrainingPlot()
 trainingPlot.SetConfig(batch_size, 500, n_epochs)
+
+
+def PSNR(labelOriginal, reconst):
+    mse = np.sqrt(np.mean((labelOriginal - reconst).flatten() ** 2))
+    psnr = 20 * np.log10(255 / mse)
+    plt.title(psnr)
+    return psnr
+
+
+def ShowDebugImage():
+    selected = np.random.randint(0, m)
+    batchData = trainData[selected].reshape([1, height, width, 1])
+    batchLabel = trainLabel[selected].reshape([1, height, width, 1])
+    batchLabelOriginal = trainLabelOriginal[selected].reshape([1, height, width, 1])
+    # predMaxOut = sess.run(predMax, feed_dict={x: batchData, y: batchLabel})
+    # yMaxOut = sess.run(yMax, feed_dict={x: batchData, y: batchLabel})
+    # print trainData.shape
+    predOut = sess.run(pred, feed_dict={x: batchData, y: batchLabel})
+    # for i in range(22):
+    # show predicted image
+    plt.figure(2)
+    plt.clf()
+    plt.subplot(2, 2, 1)
+    plt.title('Input')
+    src = batchData
+    src = np.uint8(src.reshape(height, width) * 255)
+    plt.imshow(Image.fromarray(src), cmap='Greys_r')
+    plt.subplot(2, 2, 2)
+    plt.title('Label')
+    labelOriginal = batchLabelOriginal
+    labelOriginal = np.uint8(labelOriginal.reshape(height, width) * 255)
+    plt.imshow(Image.fromarray(labelOriginal), cmap='Greys_r')
+    plt.subplot(2, 2, 3)
+    plt.title('Output')
+    output = predOut[0, :, :].reshape(height, width)
+    output = np.uint8(output.reshape(height, width) * 255)
+    plt.imshow(Image.fromarray(output), cmap='Greys_r')
+    plt.subplot(2, 2, 4)
+    # plt.title('Error')
+    # plt.imshow(np.abs(img - img2))
+    plt.title('Reconst')
+    reconst = np.uint8(output + src)
+    plt.imshow(Image.fromarray(reconst), cmap='Greys_r')
+    print 'cnn : ', PSNR(labelOriginal, reconst), 'bicubic : ', PSNR(labelOriginal, src)
+
 
 # you need to initialize all variables
 with tf.Session() as sess:
@@ -150,6 +249,24 @@ with tf.Session() as sess:
             # print 'pred', sess.run(pred, feed_dict={x: batchData, y: batchLabel})
             # print 'logPred', sess.run(logPred, feed_dict={x: batchData, y: batchLabel})
 
+            if (0):
+                print batchData.shape
+                predOut = sess.run(pred, feed_dict={x: batchData, y: batchLabel})
+
+                for i in range(batch_size):
+                    src = batchData[i]
+                    src = np.uint8(src.reshape(height, width) * 255)
+
+                    output = predOut[i, :, :].reshape(height, width)
+                    output = np.uint8(output.reshape(height, width) * 255)
+                    filename = 'result/output%d_%d.png' % (epoch_i, i)
+                    Image.fromarray(output + src).save(filename)
+                    print filename + ' saved'
+
+                continue
+
+
+
         trainLoss = np.mean(trainLoss)
         # trainAcc = np.mean(trainAcc)
         #
@@ -167,46 +284,20 @@ with tf.Session() as sess:
         trainingPlot.Show()
 
         # save snapshot
-        if epoch_i % 100 == 0:
+        if epoch_i % 500 == 0:
             print "training on image #%d" % epoch_i
             saver.save(sess, 'progress', global_step=epoch_i)
 
+
+
         # show debugging image
         if (epoch_i % 10 == 0):
-            selected = np.random.randint(0,m)
-            batchData = trainData[selected].reshape([1,height,width,1])
-            batchLabel = trainLabel[selected].reshape([1,height,width,1])
+            ShowDebugImage()
 
-            # predMaxOut = sess.run(predMax, feed_dict={x: batchData, y: batchLabel})
-            # yMaxOut = sess.run(yMax, feed_dict={x: batchData, y: batchLabel})
-            # print trainData.shape
-            predOut = sess.run(pred, feed_dict={x: batchData, y: batchLabel})
 
-            # for i in range(22):
-            # show predicted image
+            # plt.imshow(Image.fromarray(src).resize((width,height),Image.BICUBIC), cmap='Greys_r')
 
-            plt.figure(2)
-            plt.clf()
-            plt.subplot(2, 2, 1)
-            plt.title('Input')
-            img = batchData
-            # print img.shape
-            img = np.uint8(img.reshape(height,width) * 255)
-            plt.imshow(Image.fromarray(img), cmap='Greys_r')
-            plt.subplot(2, 2, 2)
-            plt.title('Label')
-            img = batchLabel
-            img = np.uint8(img.reshape(height, width) * 255)
-            plt.imshow(Image.fromarray(img), cmap='Greys_r')
-            plt.subplot(2, 2, 3)
-            plt.title('Output')
-            img2 = predOut[0, :, :].reshape(height, width)
-            img2 = np.uint8(img2.reshape(height, width) * 255)
 
-            plt.imshow(Image.fromarray(img2), cmap='Greys_r')
-            plt.subplot(2, 2, 4)
-            plt.title('Error')
-            plt.imshow(np.abs(img - img2))
             # plt.pause(0.01)
             # plt.subplot(2, 2, 4)
             # plt.imshow(img - predMaxOut[0, :, :].reshape(height, width))
@@ -215,3 +306,4 @@ with tf.Session() as sess:
         # print(epoch_i, "/", n_epochs, loss)
 
 print("Training done. ")
+
