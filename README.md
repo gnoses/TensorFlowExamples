@@ -34,6 +34,9 @@ Training plot
 ![Image](https://github.com/gnoses/TensorFlowExamples/blob/master/Images/CED_training_plot.png)
 
 
-## 4. Training mlp with training plot (without Tensorboard)
+## 4. SVHN Classification 
 
-![Image](Images/TrainingPlot.png?raw=true)
+![Image](http://ufldl.stanford.edu/housenumbers/examples_new.png)
+
+Dataset : http://ufldl.stanford.edu/housenumbers/
+
