@@ -36,7 +36,7 @@ Training plot
 
 ## 4. SVHN Classification 
 
-![Image](http://ufldl.stanford.edu/housenumbers/examples_new.png)
+![Image](http://ufldl.stanford.edu/housenumbers/32x32eg.png)
 
 Dataset : http://ufldl.stanford.edu/housenumbers/
 
