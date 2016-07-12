@@ -1,3 +1,6 @@
+
+# Dataset : Street View House Number cropped digits (http://ufldl.stanford.edu/housenumbers/)
+
 # Dependency :  https://github.com/pkmital/tensorflow_tutorials/tree/master/python/libs
 
 #!/usr/bin/env python
