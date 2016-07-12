@@ -1,3 +1,5 @@
+# Dependency :  https://github.com/pkmital/tensorflow_tutorials/tree/master/python/libs
+
 #!/usr/bin/env python
 import tensorflow as tf
 import numpy as np
