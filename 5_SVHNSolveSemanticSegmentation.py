@@ -1,14 +1,7 @@
 """
-Convolutional Encoder Decoder Net
+SVHN Semantic Segmentation training
 
-Usage :
-1. Download CamVid dataset ()
-2. Run createDB once (Set following condition to 1)
-# Create DB (run once)
-if (0):
-
-3. Reset condition to 0 and run training
-
+SejinPark 2016
 """
 
 import tensorflow as tf
