@@ -1,8 +1,3 @@
-
-# Dataset : Street View House Number cropped digits (http://ufldl.stanford.edu/housenumbers/)
-
-# Dependency :  https://github.com/pkmital/tensorflow_tutorials/tree/master/python/libs
-
 #!/usr/bin/env python
 import tensorflow as tf
 import numpy as np
@@ -14,7 +9,12 @@ from activations import lrelu
 from connections import conv2d, linear
 from batch_norm import *
 from connections import *
+import PIL.Image as Image
+import cPickle as pkl
+import matplotlib.pyplot as plt
+
 weights = []
+classes = 11
 
 # labels_dense : m x 1
 # output : m x num_classes
@@ -75,36 +75,133 @@ def ModelVGGLike(X,is_training):
                            strides=[1, 2, 2, 1], padding='SAME')
 
     conv3 = ConvBNRelu(conv2, 3, 128, is_training)
+    conv3 = ConvBNRelu(conv2, 3, 128, is_training)
     conv3 = tf.nn.max_pool(conv3, ksize=[1, 2, 2, 1],
                            strides=[1, 2, 2, 1], padding='SAME')
+
+    conv4 = ConvBNRelu(conv3, 3, 128, is_training)
+    conv4 = ConvBNRelu(conv4, 3, 128, is_training)
+    conv4 = tf.nn.max_pool(conv4, ksize=[1, 2, 2, 1],
+                           strides=[1, 2, 2, 1], padding='SAME')
+
     # print conv3
-    fc = FCRelu(conv3, 1024)
+    fc = FCRelu(conv4, 1024)
     fc = tf.nn.dropout(fc, 0.5)
-    return linear(fc, 10)
+    return linear(fc, classes)
+
+# load images with classId directory
+def LoadImages(pathLoad, saveFile):
+    classList = glob.glob(pathLoad + '/*')
+    trainfile = open(saveFile,'wt')
+    for c in classList:
+        classId = int(os.path.basename(c))
+        print classId
+        imgList = glob.glob(c + '/*.png')
+        for file in imgList:
+            # img = Image.open(file)
+            # print file, img.size
+            trainfile.write(file + ' ' + str(classId) + '\n')
+
+# load training data list file
+def LoadTrainingData(filename, negativeSampleCount=None):
+    class DataSets(object):
+        pass
+
+    datalistFile = open(filename, "rt")
+    fileList = datalistFile.readlines()
+    np.random.shuffle(fileList)
+    # print len(fileList)
+    data = None
+    label = None
+    # if sampleCount == None:
+
+    sampleCount = len(fileList)
+    hist = np.zeros(classes)
+    count = 0
+    label = []
+    for i in range(0, sampleCount, 2):
+        # for i in range(0,50,2):
+        str = fileList[i].replace('\n', '')
+        str = str.split(' ')
+        file = str[0]
+        classId = int(str[1])
+
+        if classId == 0:
+            negativeSampleCount -= 1
+            if negativeSampleCount < 0:
+                continue
+
+        hist[classId] += 1
+        if (i % 10000 == 0):
+            print '%d / %d : %s = %d' % (i, sampleCount, file, classId)
+
+        img = Image.open(file)
+
+        rgb = np.array(img).reshape(1, img.size[1], img.size[0], 3)
+
+        if count == 0:
+            data = rgb
+        else:
+            data = np.concatenate((data, rgb), axis=0)
+
+        label.append(classId)
+        count += 1
+
+        if count > 1000:
+            break
+
+    # label : m x 1 nparray
+    # oneHot : m x classes nparray of one hot code
+    print '0'
+    label = np.array(label)
+    print '1'
+    oneHot = DenseToOneHot(label, classes)
+    print '2'
+    print hist / np.sum(hist) * 100
+    # for i in range(22):
+    #     plt.subplot(1,2,1)
+    #     plt.imshow(data[0,:,:,:].reshape(height,width,3))
+    #     plt.subplot(1, 2, 2)
+    #     plt.imshow(labelOneHot[0,:,:,i].reshape(height,width))
+    #     plt.show()
+    return [data.astype(np.float32) / 255, oneHot.astype(np.float32)]
+
 
 # gpu memory restricion
 # gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.5)
 # sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
 
-train = sio.loadmat('data/train_32x32.mat')
-trX = train['X'].transpose([3,0,1,2]) / 255.0
-trY = train['y'] - 1
+def LoadDB(pickleLoad = False):
+    startTime = time.time()
+    if (pickleLoad == False):
+        trX, trY = LoadTrainingData('data/Cropped/train.txt',1000)
+        teX, teY = LoadTrainingData('data/Cropped/val.txt',1000)
+
+        with open('data/Cropped/db.pkl','wb') as fp:
+            pkl.dump(trX, fp)
+            pkl.dump(trY, fp)
+            pkl.dump(teX, fp)
+            pkl.dump(teY, fp)
+    else:
+        with open('data/Cropped/db.pkl','rb') as fp:
+            trX = pkl.load(fp)
+            trY = pkl.load(fp)
+            teX = pkl.load(fp)
+            teY = pkl.load(fp)
+    print trX.shape, teX.shape
+
+    print (time.time() - startTime), ' sec'
+    return trX, trY, teX, teY
+
+trX, trY, teX, teY = LoadDB()
+
+# exit(0)
 # trX = trX[:5000,:,:,:]
 # trY = trY[:5000,:]
-# import matplotlib.pyplot as plt
-# plt.ioff()
-# plt.imshow(trX[0,:,:,:])
-# plt.hist(trY)
-# plt.show()
-trY = DenseToOneHot(trY,10)
-
-val = sio.loadmat('data/test_32x32.mat')
-teX = val['X'].transpose([3, 0, 1, 2]) / 255.0
-teY = val['y'] - 1
-teY = DenseToOneHot(teY,10)
+# print trX.shape
 
 X = tf.placeholder("float", [None, 32, 32, 3])
-Y = tf.placeholder("float", [None, 10])
+Y = tf.placeholder("float", [None, classes])
 
 is_training = tf.placeholder(tf.bool, name='is_training')
 
@@ -142,12 +239,14 @@ with tf.Session() as sess:
     checkpoint = tf.train.latest_checkpoint(savePath)
     if resumeTraining == False:
         print "Start from scratch"
+        tf.initialize_all_variables().run()
     elif checkpoint:
         print "Restoring from checkpoint", checkpoint
         saver.restore(sess, checkpoint)
     else:
         print "Couldn't find checkpoint to restore from. Starting over."
-    tf.initialize_all_variables().run()
+        tf.initialize_all_variables().run()
+
 
     for i in range(totalIter):
         trainLoss = []
@@ -164,12 +263,22 @@ with tf.Session() as sess:
         trainLoss = np.mean(trainLoss)
         trainAcc = np.mean(trainAcc)
 
+
         test_indices = np.arange(len(teX))  # Get A Test Batch
         np.random.shuffle(test_indices)
-        test_indices = test_indices[0:batchSize]
-        valLoss = sess.run(cost, feed_dict={X: teX[test_indices],Y:teY[test_indices],is_training:False})
-        valAcc = sess.run(acc_op, feed_dict={X: teX[test_indices],Y:teY[test_indices],is_training:False})
+        start = time.time()
+        valLoss = []
+        valAcc = []
+        for start, end in zip(range(0, len(teX), batchSize), range(batchSize, len(teX), batchSize)):
+            loss = sess.run(cost, feed_dict={X: teX[start:end],Y:teY[start:end],is_training:False})
+            acc = sess.run(acc_op, feed_dict={X: teX[start:end],Y:teY[start:end],is_training:False})
+            print 'Test : ',loss, acc
+            valLoss.append(loss)
+            valAcc.append(acc)
 
+        valLoss = np.mean(valLoss)
+        valAcc = np.mean(valAcc)
+        print 'test time ', time.time() - start
         plot.Add(i, trainLoss, valLoss, trainAcc, valAcc)
         # plot.Add(i, trainLoss, valLoss, 0, 0)
         plot.Show()
