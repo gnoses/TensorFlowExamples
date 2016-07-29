@@ -5,20 +5,43 @@ import PIL.ImageDraw as ImageDraw
 import glob
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import fill
+import os
+import shutil
 
 count = [0,0,0,0,0,0,0,0,0,0,0,0]
 stride = 10
 
+
+
+
 class Param:
     resizeWidth = 128
     resizeHeight = 64
+
+def MakePath(pathData):
+    try:
+        shutil.rmtree(pathData)
+    except:
+        pass
+
+    try:
+        print 'create ' + pathData
+        os.makedirs(pathData)
+        # os.makedirs('/home/gnoses/Tensorflow/SVHN/data/Cropped/train')
+        for i in range(0,11):
+            os.makedirs(pathData + '/%d' % i)
+    except:
+        print 'create ' + pathData + ' failed'
+        return False
+    return True
+
 # roi : (left, top, right, bottom)
 def SaveCropImage(imgData, classId, roi):
-    savePath = 'data/Cropped/%d/%d.png' % (classId, count[classId])
+    imgPath = savePath + '/%d/%d.png' % (classId, count[classId])
     count[classId] = count[classId] + 1
     croppedImg = imgData.crop(roi)
     croppedImg = croppedImg.resize((32, 32), Image.BICUBIC)
-    croppedImg.save(savePath)
+    croppedImg.save(imgPath)
     # print savePath
 
 # calulate IoU
@@ -70,7 +93,7 @@ def NegativeSampleMining(imgData, gtList, stride):
 
 
 
-def ShowImage(digitStruct, i):
+def LoadImage(digitStruct, i):
     info = (digitStruct['digitStruct'][0])[i]
     filename = info[0][0]
     rois = info[1]
@@ -126,38 +149,19 @@ def CreateDB(pathLoad, savePath):
         progress = float(i) / float(m) * 100.0
         if i % 100 == 0:
             print '%d / %d : %.1f %%' % (i,m, progress)
-        imgData, imgLabel = ShowImage(digitStruct, i)
-
-        # newData = Image.new('RGB', (Param.resizeWidth, Param.resizeHeight))
-        # newLabel = Image.new('L', (Param.resizeWidth, Param.resizeHeight))
-        # width = imgData.size[0]
-        # height = imgData.size[1]
-        # aspectRatio = float(width) / float(height)
-        # # smaller than resizWidth/Height, paste
-        # if (width <= Param.resizeWidth and height <= Param.resizeHeight):
-        #     resizeData = imgData
-        #     resizeLabel = imgLabel
-        # # keep aspect ratio
-        # elif (width > height):
-        #     resizeData = imgData.resize((Param.resizeWidth, (int)(Param.resizeHeight / aspectRatio)), Image.BICUBIC)
-        #     resizeLabel = imgLabel.resize((Param.resizeWidth, (int)(Param.resizeHeight / aspectRatio)), Image.NEAREST)
-        # else:
-        #     resizeData = imgData.resize((int(Param.resizeWidth * aspectRatio), height), Image.BICUBIC)
-        #     resizeLabel = imgLabel.resize((int(Param.resizeWidth * aspectRatio), height), Image.NEAREST)
-        # # print resizeData.size
-        # # print newData.size
-        # newData.paste(resizeData, (0,0))
-        # newData.save(savePath + '/%d.png' % i)
-        # newLabel.paste(resizeLabel, (0,0))
-        # newLabel.save(savePath + 'annot/%d.png' % i)
+            LoadImage(digitStruct, i)
 
 
+savePath = 'data/Cropped/train'
+if (MakePath(savePath) == False):
+    exit(0)
 pathLoad = 'data/Original/train/'
-savePath = 'data/PixelLabel/train'
 CreateDB(pathLoad, savePath)
 
 
+savePath = 'data/Cropped/val'
+MakePath(savePath)
 pathLoad = 'data/Original/val/'
-savePath = 'data/PixelLabel/val'
 CreateDB(pathLoad, savePath)
+
 
