@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 import tensorflow as tf
 import numpy as np
-import input_data
+# import input_data
 from TrainingPlot import *
-import scipy.io as sio
+# import scipy.io as sio
 from batch_norm import batch_norm
 from activations import lrelu
 from connections import conv2d, linear
@@ -11,7 +11,7 @@ from batch_norm import *
 from connections import *
 import PIL.Image as Image
 import cPickle as pkl
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 weights = []
 classes = 11
@@ -62,6 +62,18 @@ def ModelSimple(X, is_training):
                            is_training, scope='bn3'), name='lrelu3')
     h_3_flat = tf.reshape(h_3, [-1, 64 * 4 * 4])
     return linear(h_3_flat, 10)
+def ModelVGGLikeSmall(X,is_training):
+    conv1 = ConvBNRelu(X, 3, 32, is_training)
+    conv1 = tf.nn.max_pool(conv1, ksize=[1, 2, 2, 1],
+                           strides=[1, 2, 2, 1], padding='SAME')
+
+    conv2 = ConvBNRelu(conv1, 3, 32, is_training)
+    conv2 = tf.nn.max_pool(conv2, ksize=[1, 2, 2, 1],
+                           strides=[1, 2, 2, 1], padding='SAME')
+
+    fc = FCRelu(conv2, 256)
+    fc = tf.nn.dropout(fc, 0.5)
+    return linear(fc, classes)
 
 def ModelVGGLike(X,is_training):
     conv1 = ConvBNRelu(X, 3, 256, is_training)
@@ -89,18 +101,6 @@ def ModelVGGLike(X,is_training):
     fc = tf.nn.dropout(fc, 0.5)
     return linear(fc, classes)
 
-# load images with classId directory
-def LoadImages(pathLoad, saveFile):
-    classList = glob.glob(pathLoad + '/*')
-    trainfile = open(saveFile,'wt')
-    for c in classList:
-        classId = int(os.path.basename(c))
-        print classId
-        imgList = glob.glob(c + '/*.png')
-        for file in imgList:
-            # img = Image.open(file)
-            # print file, img.size
-            trainfile.write(file + ' ' + str(classId) + '\n')
 
 # load training data list file
 def LoadTrainingData(filename, negativeSampleCount=None):
@@ -125,11 +125,10 @@ def LoadTrainingData(filename, negativeSampleCount=None):
         str = str.split(' ')
         file = str[0]
         classId = int(str[1])
-
-        if classId == 0:
-            negativeSampleCount -= 1
+        if (negativeSampleCount != None and classId == 0):
             if negativeSampleCount < 0:
                 continue
+            negativeSampleCount -= 1
 
         hist[classId] += 1
         if (i % 10000 == 0):
@@ -147,16 +146,14 @@ def LoadTrainingData(filename, negativeSampleCount=None):
         label.append(classId)
         count += 1
 
-        if count > 1000:
-            break
 
     # label : m x 1 nparray
     # oneHot : m x classes nparray of one hot code
-    print '0'
+    # print '0'
     label = np.array(label)
-    print '1'
+    # print '1'
     oneHot = DenseToOneHot(label, classes)
-    print '2'
+    # print '2'
     print hist / np.sum(hist) * 100
     # for i in range(22):
     #     plt.subplot(1,2,1)
@@ -172,10 +169,10 @@ def LoadTrainingData(filename, negativeSampleCount=None):
 # sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
 
 def LoadDB(pickleLoad = False):
-    startTime = time.time()
+    # startTime = time.time()
     if (pickleLoad == False):
-        trX, trY = LoadTrainingData('data/Cropped/train.txt',1000)
-        teX, teY = LoadTrainingData('data/Cropped/val.txt',1000)
+        trX, trY = LoadTrainingData('data/Cropped/train.txt')
+        teX, teY = LoadTrainingData('data/Cropped/val.txt')
 
         with open('data/Cropped/db.pkl','wb') as fp:
             pkl.dump(trX, fp)
@@ -188,12 +185,58 @@ def LoadDB(pickleLoad = False):
             trY = pkl.load(fp)
             teX = pkl.load(fp)
             teY = pkl.load(fp)
-    print trX.shape, teX.shape
+    # print trX.shape, teX.shape
 
-    print (time.time() - startTime), ' sec'
+    # print (time.time() - startTime), ' sec'
     return trX, trY, teX, teY
 
-trX, trY, teX, teY = LoadDB()
+# random pick some negative samples
+# return split list of pos + partial neg samples
+def PickNegativeSample(trXFull, trYFull, split):
+    pos = trXFull[trYFull[:,0]==0,:,:,:]
+    poslabel = trYFull[trYFull[:, 0] == 0, :]
+    neg = trXFull[trYFull[:,0]==1,:,:,:]
+    neglabel = trYFull[trYFull[:,0]==1,:]
+    negCount = neg.shape[0]
+    batchSize = negCount / split
+    pickIndex = np.random.permutation(neg.shape[0])
+
+    trXList = []
+    trYList = []
+    for start, end in zip(range(0, negCount, batchSize), range(batchSize, negCount, batchSize)):
+        batchIndex = pickIndex[start:end]
+        negPick = neg[batchIndex, :,:,:]
+        neglabelPick = neglabel[batchIndex,:]
+        trXList.append(np.concatenate((pos, negPick), axis=0))
+        trYList.append(np.concatenate((poslabel, neglabelPick), axis=0))
+
+    return trXList, trYList
+
+def Prediction(testX, testY, batchSize):
+    valLoss = []
+    valAcc = []
+    # valAccPos = []
+
+    for start, end in zip(range(0, len(testX), batchSize), range(batchSize, len(testX), batchSize)):
+        loss = sess.run(cost, feed_dict={X: testX[start:end], Y: testY[start:end], is_training: False})
+        acc = sess.run(acc_op, feed_dict={X: testX[start:end], Y: testY[start:end], is_training: False})
+        # correct = sess.run(correct_pred, feed_dict={X: testX[start:end], Y: testY[start:end], is_training: False})
+        # print correct.shape
+        # correctPos = correct[testY[start:end][0] != 0]
+        # valAccPos.append(np.mean(correctPos))
+        valLoss.append(loss)
+        valAcc.append(acc)
+
+    return np.mean(valLoss), np.mean(valAcc) # , np.mean(valAccPos)
+
+
+# X : m x w x h x 3
+# Y : m x classes
+trXFull, trYFull, teX, teY = LoadDB(True)
+trXList, trYList = PickNegativeSample(trXFull, trYFull, 10)
+
+print 'Full Train data :', trXFull.shape
+print 'Val data :', teX.shape
 
 # exit(0)
 # trX = trX[:5000,:,:,:]
@@ -207,6 +250,7 @@ is_training = tf.placeholder(tf.bool, name='is_training')
 
 # p_keep_conv = tf.placeholder("float")
 # pred = ModelSimple(X,is_training)
+# pred = ModelVGGLikeSmall(X,is_training)
 pred = ModelVGGLike(X,is_training)
 
 # loss
@@ -222,35 +266,40 @@ predict_op = tf.argmax(pred, 1)
 correct_pred = tf.equal(tf.argmax(Y, 1), predict_op) # Count correct predictions
 acc_op = tf.reduce_mean(tf.cast(correct_pred, "float")) # Cast boolean to float to average
 
-
 plot = TrainingPlot()
-batchSize = 128
-sampleCount = len(trX)
-totalIter = 10000
+batchSize = 10
+sampleCount = len(trXFull)
+totalIter = 1000000
 plot.SetConfig(batchSize, sampleCount, totalIter)
 resumeTraining = True
 savePath = 'snapshot'
-m = len(trX)
-print 'Training data : %d ea' % m
+print 'Training data : %d ea' % len(trXList[0])
 
 # Launch the graph in a session
 with tf.Session() as sess:
+    tf.initialize_all_variables().run()
     saver = tf.train.Saver()
     checkpoint = tf.train.latest_checkpoint(savePath)
     if resumeTraining == False:
         print "Start from scratch"
-        tf.initialize_all_variables().run()
+        # tf.initialize_all_variables().run()
     elif checkpoint:
         print "Restoring from checkpoint", checkpoint
         saver.restore(sess, checkpoint)
     else:
         print "Couldn't find checkpoint to restore from. Starting over."
-        tf.initialize_all_variables().run()
-
-
+        # tf.initialize_all_variables().run()
+    negIndex = 0
     for i in range(totalIter):
         trainLoss = []
         trainAcc = []
+
+        # train with sampled negative
+        trX = trXList[negIndex]
+        trY = trYList[negIndex]
+        negIndex += 1
+        if negIndex == len(trXList):
+            negIndex = 0
 
         for start, end in zip(range(0, len(trX), batchSize), range(batchSize, len(trX), batchSize)):
             sess.run(train_op, feed_dict={X: trX[start:end],Y:trY[start:end],is_training:True})
@@ -264,25 +313,23 @@ with tf.Session() as sess:
         trainAcc = np.mean(trainAcc)
 
 
-        test_indices = np.arange(len(teX))  # Get A Test Batch
-        np.random.shuffle(test_indices)
-        start = time.time()
-        valLoss = []
-        valAcc = []
-        for start, end in zip(range(0, len(teX), batchSize), range(batchSize, len(teX), batchSize)):
-            loss = sess.run(cost, feed_dict={X: teX[start:end],Y:teY[start:end],is_training:False})
-            acc = sess.run(acc_op, feed_dict={X: teX[start:end],Y:teY[start:end],is_training:False})
-            print 'Test : ',loss, acc
-            valLoss.append(loss)
-            valAcc.append(acc)
+        # Prediction(teX, teY, batchsize)
 
-        valLoss = np.mean(valLoss)
-        valAcc = np.mean(valAcc)
-        print 'test time ', time.time() - start
-        plot.Add(i, trainLoss, valLoss, trainAcc, valAcc)
-        # plot.Add(i, trainLoss, valLoss, 0, 0)
-        plot.Show()
+        # print 'test time ', (time.time() - start)
+
 
         # save snapshot
-        if (resumeTraining):
-            saver.save(sess, savePath + '/progress', global_step=i)
+        if (resumeTraining and i % 10 == 0):
+            valLoss = []
+            valAcc = []
+            # valAccPos = []
+            for k in range(0,len(trXList)):
+                loss, acc = Prediction(trXList[k], trYList[k], batchSize)
+                valLoss.append(loss)
+                valAcc.append(acc)
+                # valAccPos.append(accPos)
+            # print 'AccPos : ', np.mean(valAccPos)
+            plot.Add(i, trainLoss, np.mean(valLoss), trainAcc, np.mean(valAcc))
+            # plot.Add(i, trainLoss, valLoss, 0, 0)
+            plot.Show()
+            saver.save(sess, savePath + '/progress_%d' % i)
