@@ -9,14 +9,8 @@ import os
 import shutil
 
 count = [0,0,0,0,0,0,0,0,0,0,0,0]
-stride = 10
+stride = 5
 
-
-
-
-class Param:
-    resizeWidth = 128
-    resizeHeight = 64
 
 def MakePath(pathData):
     try:
@@ -41,6 +35,7 @@ def SaveCropImage(imgData, classId, roi):
     count[classId] = count[classId] + 1
     croppedImg = imgData.crop(roi)
     croppedImg = croppedImg.resize((32, 32), Image.BICUBIC)
+    print imgPath
     croppedImg.save(imgPath)
     # print savePath
 
@@ -98,7 +93,14 @@ def LoadImage(digitStruct, i):
     filename = info[0][0]
     rois = info[1]
     # print filename
-    imgData = Image.open(pathLoad + filename)
+    try:
+        imgData = Image.open(pathLoad + filename)
+    except:
+        # print pathLoad + filename + ' failed'
+        return
+    # if filename == '10727.png':
+    #     print '-------------------------------------------------------'
+    # print pathLoad + filename + ' ok'
     imgLabel = Image.new('L', imgData.size, 0)
     gtList = []
 
@@ -111,10 +113,7 @@ def LoadImage(digitStruct, i):
         bottom = top + int(rois[0,j][0])
         width = (right - left - 1)
         height = (bottom - top - 1)
-        left += width / 4
-        right -= width / 4
-        top += height / 4
-        bottom -= height / 4
+
         classId = int(rois[0,j][4])
         gt = (left, top, right, bottom, width, height)
         SaveCropImage(imgData, classId, (left, top, right, bottom))
@@ -123,13 +122,6 @@ def LoadImage(digitStruct, i):
 
     NegativeSampleMining(imgData, gtList, stride)
 
-    if (top - height > 0):
-        SaveCropImage(imgData, 0, (left, top - height, right, bottom - height))
-
-    if (top + height < imgData.size[1]):
-        SaveCropImage(imgData, 0, (left, top + height, right, bottom + height))
-        # print left, top, right, bottom
-        # draw.rectangle([(left,top), (right,bottom)],fill=classId)
     if (0):
         # plt.ioff()
         plt.imshow(imgData)
@@ -139,17 +131,30 @@ def LoadImage(digitStruct, i):
         plt.show()
     return imgData, imgLabel
 
+
+# load images with classId directory
+def WriteData(pathLoad, saveFile):
+    classList = glob.glob(pathLoad + '/*')
+    # print classList
+    trainfile = open(saveFile,'wt')
+
+    for c in classList:
+        classId = int(os.path.basename(c))
+        # print classId
+        imgList = glob.glob(c + '/*.png')
+        for file in imgList:
+            # img = Image.open(file)
+            # print file, img.size
+            trainfile.write(file + ' ' + str(classId) + '\n')
+
 def CreateDB(pathLoad, savePath):
     digitStruct = sio.loadmat(pathLoad + 'digitStruct.mat')
     m = digitStruct['digitStruct'].shape[1]
     print 'Load %d data' % m
 
     for i in range(m):
+        LoadImage(digitStruct, i)
 
-        progress = float(i) / float(m) * 100.0
-        if i % 100 == 0:
-            print '%d / %d : %.1f %%' % (i,m, progress)
-            LoadImage(digitStruct, i)
 
 
 savePath = 'data/Cropped/train'
@@ -157,11 +162,12 @@ if (MakePath(savePath) == False):
     exit(0)
 pathLoad = 'data/Original/train/'
 CreateDB(pathLoad, savePath)
-
+WriteData(savePath, savePath + '.txt')
 
 savePath = 'data/Cropped/val'
 MakePath(savePath)
 pathLoad = 'data/Original/val/'
 CreateDB(pathLoad, savePath)
+WriteData(savePath, savePath + '.txt')
 
 
