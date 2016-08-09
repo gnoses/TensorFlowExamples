@@ -253,12 +253,9 @@ def LoadImage(digitStruct, i, sess):
     # Y : m x classes
     return ExaustiveSearch(sess, imgData, gtList, stride)
 
-
-
-
-
 # load full resolution image for detection
 pathLoad = 'data/OriginalSmall/train/'
+savePath = 'snapshot'
 digitStruct = sio.loadmat(pathLoad + 'digitStruct.mat')
 sampleCount = digitStruct['digitStruct'].shape[1]
 print 'Load %d data' % sampleCount
@@ -292,7 +289,7 @@ batchSize = 10
 totalIter = 1000000
 plot.SetConfig(batchSize, sampleCount, totalIter)
 resumeTraining = True
-savePath = 'snapshotSmall2'
+
 # print 'Training data : %d ea' % len(trXList[0])
 
 
