@@ -7,17 +7,20 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import fill
 import os
 import shutil
+import lmdb
 
 count = [0,0,0,0,0,0,0,0,0,0,0,0]
 stride = 5
 
 
 def MakePath(pathData):
+    print 'Make path delete previous data'
     try:
         shutil.rmtree(pathData)
     except:
         pass
 
+    print 'Make path create new directory'
     try:
         print 'create ' + pathData
         os.makedirs(pathData)
@@ -25,19 +28,19 @@ def MakePath(pathData):
         for i in range(0,11):
             os.makedirs(pathData + '/%d' % i)
     except:
-        print 'create ' + pathData + ' failed'
+        # print 'create ' + pathData + ' failed'
         return False
+
     return True
 
 # roi : (left, top, right, bottom)
 def SaveCropImage(imgData, classId, roi):
     imgPath = savePath + '/%d/%d.png' % (classId, count[classId])
-    count[classId] = count[classId] + 1
     croppedImg = imgData.crop(roi)
     croppedImg = croppedImg.resize((32, 32), Image.BICUBIC)
-    print imgPath
     croppedImg.save(imgPath)
     # print savePath
+
 
 # calulate IoU
 def CalcIoU(a, b):
@@ -65,12 +68,9 @@ def NegativeSampleMining(imgData, gtList, stride):
             draw = ImageDraw.Draw(imgDisp)
             b = (col, row, col + width, row + height, width, height)
             for gt in gtList:
-                a = (gt[0],gt[1],gt[0]+gt[2],gt[1]+gt[3],gt[2],gt[3])
-
-
                 # print col, row, width, height, CalcIoU(a,b)
-                draw.rectangle([(col, row), (col + width, row + height)])
-                iou = CalcIoU(a, b)
+                # draw.rectangle([(col, row), (col + width, row + height)])
+                iou = CalcIoU(gt, b)
                 plt.title(iou)
                 if (iou > 0.2):
                     hit = True
@@ -78,9 +78,8 @@ def NegativeSampleMining(imgData, gtList, stride):
 
             if hit == False:
                 draw.rectangle([(col,row),(col+width,row+height)])
+                count[0] = count[0] + 1
                 SaveCropImage(imgData, 0, (col, row, col + width, row + height))
-
-
 
             # plt.ioff()
             # plt.imshow(imgDisp)
@@ -88,8 +87,8 @@ def NegativeSampleMining(imgData, gtList, stride):
 
 
 
-def LoadImage(digitStruct, i):
-    info = (digitStruct['digitStruct'][0])[i]
+def LoadImage(info):
+
     filename = info[0][0]
     rois = info[1]
     # print filename
@@ -117,8 +116,10 @@ def LoadImage(digitStruct, i):
         classId = int(rois[0,j][4])
         gt = (left, top, right, bottom, width, height)
         SaveCropImage(imgData, classId, (left, top, right, bottom))
+
         gtList.append(gt)
         # print savePath, count
+        draw.rectangle([(left, top), (right, bottom)], fill=classId)
 
     NegativeSampleMining(imgData, gtList, stride)
 
@@ -147,27 +148,32 @@ def WriteData(pathLoad, saveFile):
             # print file, img.size
             trainfile.write(file + ' ' + str(classId) + '\n')
 
-def CreateDB(pathLoad, savePath):
+def CreateDB(pathLoad, trainingDataCount = 0):
+    print 'Load from %s' % pathLoad
     digitStruct = sio.loadmat(pathLoad + 'digitStruct.mat')
-    m = digitStruct['digitStruct'].shape[1]
-    print 'Load %d data' % m
-
+    if trainingDataCount == 0:
+        m = digitStruct['digitStruct'].shape[1]
+    else:
+        m = trainingDataCount
+    print '%d data' % (m)
     for i in range(m):
-        LoadImage(digitStruct, i)
+        print '%d/%d' % (i,m)
+        info = (digitStruct['digitStruct'][0])[i]
+        LoadImage(info)
 
 
-
-savePath = 'data/Cropped/train'
+trainingDataCount = 10000
+savePath = 'data/CroppedSmall%d/train/' % trainingDataCount
 if (MakePath(savePath) == False):
     exit(0)
 pathLoad = 'data/Original/train/'
-CreateDB(pathLoad, savePath)
+CreateDB(pathLoad, trainingDataCount)
 WriteData(savePath, savePath + '.txt')
 
-savePath = 'data/Cropped/val'
+savePath = 'data/CroppedSmall%d/val' % trainingDataCount
 MakePath(savePath)
 pathLoad = 'data/Original/val/'
-CreateDB(pathLoad, savePath)
+CreateDB(pathLoad, trainingDataCount/5)
 WriteData(savePath, savePath + '.txt')
 
 
