@@ -111,14 +111,12 @@ def LoadTrainingData(filename, negativeSampleCount=None):
     fileList = datalistFile.readlines()
     np.random.shuffle(fileList)
     # print len(fileList)
-    data = None
-    label = None
+    data = []
+    label = []
     # if sampleCount == None:
 
     sampleCount = len(fileList)
     hist = np.zeros(classes)
-    count = 0
-    label = []
     for i in range(0, sampleCount, 2):
         # for i in range(0,50,2):
         str = fileList[i].replace('\n', '')
@@ -136,24 +134,17 @@ def LoadTrainingData(filename, negativeSampleCount=None):
 
         img = Image.open(file)
 
-        rgb = np.array(img).reshape(1, img.size[1], img.size[0], 3)
-
-        if count == 0:
-            data = rgb
-        else:
-            data = np.concatenate((data, rgb), axis=0)
-
+        data.append(np.array(img))
         label.append(classId)
-        count += 1
-
 
     # label : m x 1 nparray
     # oneHot : m x classes nparray of one hot code
-    # print '0'
+    data = np.array(data).reshape(-1, 32, 32, 3)
     label = np.array(label)
     # print '1'
     oneHot = DenseToOneHot(label, classes)
     # print '2'
+    print hist
     print hist / np.sum(hist) * 100
     # for i in range(22):
     #     plt.subplot(1,2,1)
@@ -168,19 +159,19 @@ def LoadTrainingData(filename, negativeSampleCount=None):
 # gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.5)
 # sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
 
-def LoadDB(pickleLoad = False):
+def LoadDB(path,pickleLoad = False):
     # startTime = time.time()
     if (pickleLoad == False):
-        trX, trY = LoadTrainingData('data/Cropped/train.txt')
-        teX, teY = LoadTrainingData('data/Cropped/val.txt')
+        trX, trY = LoadTrainingData(path + '/train.txt')
+        teX, teY = LoadTrainingData(path + '/val.txt')
 
-        with open('data/Cropped/db.pkl','wb') as fp:
+        with open(path + '/db.pkl','wb') as fp:
             pkl.dump(trX, fp)
             pkl.dump(trY, fp)
             pkl.dump(teX, fp)
             pkl.dump(teY, fp)
     else:
-        with open('data/Cropped/db.pkl','rb') as fp:
+        with open(path + '/db.pkl','rb') as fp:
             trX = pkl.load(fp)
             trY = pkl.load(fp)
             teX = pkl.load(fp)
@@ -232,16 +223,11 @@ def Prediction(testX, testY, batchSize):
 
 # X : m x w x h x 3
 # Y : m x classes
-trXFull, trYFull, teX, teY = LoadDB(True)
-trXList, trYList = PickNegativeSample(trXFull, trYFull, 10)
+trXFull, trYFull, teX, teY = LoadDB('data/CroppedSmall/')
+trXList, trYList = PickNegativeSample(trXFull, trYFull, 100)
 
 print 'Full Train data :', trXFull.shape
 print 'Val data :', teX.shape
-
-# exit(0)
-# trX = trX[:5000,:,:,:]
-# trY = trY[:5000,:]
-# print trX.shape
 
 X = tf.placeholder("float", [None, 32, 32, 3])
 Y = tf.placeholder("float", [None, classes])
@@ -267,7 +253,7 @@ correct_pred = tf.equal(tf.argmax(Y, 1), predict_op) # Count correct predictions
 acc_op = tf.reduce_mean(tf.cast(correct_pred, "float")) # Cast boolean to float to average
 
 plot = TrainingPlot()
-batchSize = 10
+batchSize = 50
 sampleCount = len(trXFull)
 totalIter = 1000000
 plot.SetConfig(batchSize, sampleCount, totalIter)
