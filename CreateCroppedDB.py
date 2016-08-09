@@ -36,6 +36,7 @@ def MakePath(pathData):
 # roi : (left, top, right, bottom)
 def SaveCropImage(imgData, classId, roi):
     imgPath = savePath + '/%d/%d.png' % (classId, count[classId])
+    count[classId] += 1
     croppedImg = imgData.crop(roi)
     croppedImg = croppedImg.resize((32, 32), Image.BICUBIC)
     croppedImg.save(imgPath)
@@ -100,11 +101,10 @@ def LoadImage(info):
     # if filename == '10727.png':
     #     print '-------------------------------------------------------'
     # print pathLoad + filename + ' ok'
-    imgLabel = Image.new('L', imgData.size, 0)
     gtList = []
 
     for j in range(rois.shape[1]):
-        draw = ImageDraw.Draw(imgLabel)
+        # draw = ImageDraw.Draw(imgLabel)
         # height, left, top, width, label
         left = int(rois[0,j][1])
         top = int(rois[0,j][2])
@@ -119,7 +119,7 @@ def LoadImage(info):
 
         gtList.append(gt)
         # print savePath, count
-        draw.rectangle([(left, top), (right, bottom)], fill=classId)
+        # draw.rectangle([(left, top), (right, bottom)], fill=classId)
 
     NegativeSampleMining(imgData, gtList, stride)
 
@@ -130,7 +130,8 @@ def LoadImage(info):
         plt.title(imgData.size)
         # plt.pause(0.1)
         plt.show()
-    return imgData, imgLabel
+    return
+    # return imgData, imgLabel
 
 
 # load images with classId directory
@@ -149,28 +150,36 @@ def WriteData(pathLoad, saveFile):
             trainfile.write(file + ' ' + str(classId) + '\n')
 
 def CreateDB(pathLoad, trainingDataCount = 0):
-    print 'Load from %s' % pathLoad
+
     digitStruct = sio.loadmat(pathLoad + 'digitStruct.mat')
     if trainingDataCount == 0:
         m = digitStruct['digitStruct'].shape[1]
     else:
         m = trainingDataCount
-    print '%d data' % (m)
+    print 'Load from %s, %d data'  % (pathLoad, m)
     for i in range(m):
-        print '%d/%d' % (i,m)
+        if (i % 100 == 0):
+            print '%d/%d' % (i,m)
         info = (digitStruct['digitStruct'][0])[i]
         LoadImage(info)
 
 
 trainingDataCount = 10000
-savePath = 'data/CroppedSmall%d/train/' % trainingDataCount
+if (trainingDataCount == 0):
+    savePath = 'data/CroppedFull/train'
+else:
+    savePath = 'data/CroppedSmall%d/train' % trainingDataCount
 if (MakePath(savePath) == False):
     exit(0)
 pathLoad = 'data/Original/train/'
 CreateDB(pathLoad, trainingDataCount)
 WriteData(savePath, savePath + '.txt')
 
-savePath = 'data/CroppedSmall%d/val' % trainingDataCount
+
+if (trainingDataCount == 0):
+    savePath = 'data/CroppedFull/val'
+else:
+    savePath = 'data/CroppedSmall%d/val' % trainingDataCount
 MakePath(savePath)
 pathLoad = 'data/Original/val/'
 CreateDB(pathLoad, trainingDataCount/5)
