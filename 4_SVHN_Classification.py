@@ -103,7 +103,7 @@ def ModelVGGLike(X,is_training):
 
 
 # load training data list file
-def LoadTrainingData(filename, negativeSampleCount=None):
+def LoadTrainingData(filename):
     class DataSets(object):
         pass
 
@@ -117,23 +117,18 @@ def LoadTrainingData(filename, negativeSampleCount=None):
 
     sampleCount = len(fileList)
     hist = np.zeros(classes)
-    for i in range(0, sampleCount, 2):
+    for i in range(sampleCount):
         # for i in range(0,50,2):
         str = fileList[i].replace('\n', '')
         str = str.split(' ')
         file = str[0]
         classId = int(str[1])
-        if (negativeSampleCount != None and classId == 0):
-            if negativeSampleCount < 0:
-                continue
-            negativeSampleCount -= 1
 
         hist[classId] += 1
         if (i % 10000 == 0):
             print '%d / %d : %s = %d' % (i, sampleCount, file, classId)
 
         img = Image.open(file)
-
         data.append(np.array(img))
         label.append(classId)
 
@@ -183,13 +178,18 @@ def LoadDB(path,pickleLoad = False):
 
 # random pick some negative samples
 # return split list of pos + partial neg samples
-def PickNegativeSample(trXFull, trYFull, split):
+def PickNegativeSample(trXFull, trYFull):
     pos = trXFull[trYFull[:,0]==0,:,:,:]
     poslabel = trYFull[trYFull[:, 0] == 0, :]
     neg = trXFull[trYFull[:,0]==1,:,:,:]
     neglabel = trYFull[trYFull[:,0]==1,:]
+    posCount = pos.shape[0]
     negCount = neg.shape[0]
-    batchSize = negCount / split
+    assert(posCount + negCount == trXFull.shape[0])
+    # set negative batch to pos * 2
+    batchSize = posCount * 2
+
+
     pickIndex = np.random.permutation(neg.shape[0])
 
     trXList = []
@@ -201,6 +201,7 @@ def PickNegativeSample(trXFull, trYFull, split):
         trXList.append(np.concatenate((pos, negPick), axis=0))
         trYList.append(np.concatenate((poslabel, neglabelPick), axis=0))
 
+    print 'Pick negatives : pos %d, neg (%d / %d) * %d' % (posCount, batchSize, negCount, len(trXList))
     return trXList, trYList
 
 def Prediction(testX, testY, batchSize):
@@ -221,10 +222,12 @@ def Prediction(testX, testY, batchSize):
     return np.mean(valLoss), np.mean(valAcc) # , np.mean(valAccPos)
 
 
+savePath = 'snapshot10000'
+os.makedirs(savePath)
 # X : m x w x h x 3
 # Y : m x classes
-trXFull, trYFull, teX, teY = LoadDB('data/CroppedSmall/')
-trXList, trYList = PickNegativeSample(trXFull, trYFull, 100)
+trXFull, trYFull, teX, teY = LoadDB('data/CroppedSmall10000/')
+trXList, trYList = PickNegativeSample(trXFull, trYFull)
 
 print 'Full Train data :', trXFull.shape
 print 'Val data :', teX.shape
@@ -258,7 +261,7 @@ sampleCount = len(trXFull)
 totalIter = 1000000
 plot.SetConfig(batchSize, sampleCount, totalIter)
 resumeTraining = True
-savePath = 'snapshot'
+
 print 'Training data : %d ea' % len(trXList[0])
 
 # Launch the graph in a session
