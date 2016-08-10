@@ -1,3 +1,21 @@
+# SVHN Training
+# Sejin Park
+#
+# We need Caffe to load lmdb prior to Tensorflow
+from LoadData import *
+classes = 11
+# X : m x w x h x 3
+# Y : m x classes
+trXFull, trYFull, teX, teY = LoadData('data/CroppedSmall1000LMDB/', classes)
+savePath = 'snapshot1000'
+try:
+    os.makedirs(savePath)
+except:
+    pass
+
+# trXFull, trYFull, teX, teY = LoadDB('data/CroppedSmall1000/')
+trXList, trYList = PickNegativeSample(trXFull, trYFull)
+
 #!/usr/bin/env python
 import tensorflow as tf
 import numpy as np
@@ -11,20 +29,13 @@ from batch_norm import *
 from connections import *
 import PIL.Image as Image
 import cPickle as pkl
+
+
 # import matplotlib.pyplot as plt
 
 weights = []
-classes = 11
 
-# labels_dense : m x 1
-# output : m x num_classes
-def DenseToOneHot(labels_dense, num_classes):
-    """Convert class labels from scalars to one-hot vectors."""
-    num_labels = labels_dense.shape[0]
-    index_offset = np.arange(num_labels) * num_classes
-    labels_one_hot = np.zeros((num_labels, num_classes))
-    labels_one_hot.flat[index_offset + labels_dense.ravel()] = 1
-    return labels_one_hot
+
 
 def CreateWeight(kernelSize, inputSize, outputSize):
     name = 'w%d' % len(weights)
@@ -102,108 +113,6 @@ def ModelVGGLike(X,is_training):
     return linear(fc, classes)
 
 
-# load training data list file
-def LoadTrainingData(filename):
-    class DataSets(object):
-        pass
-
-    datalistFile = open(filename, "rt")
-    fileList = datalistFile.readlines()
-    np.random.shuffle(fileList)
-    # print len(fileList)
-    data = []
-    label = []
-    # if sampleCount == None:
-
-    sampleCount = len(fileList)
-    hist = np.zeros(classes)
-    for i in range(sampleCount):
-        # for i in range(0,50,2):
-        str = fileList[i].replace('\n', '')
-        str = str.split(' ')
-        file = str[0]
-        classId = int(str[1])
-
-        hist[classId] += 1
-        if (i % 10000 == 0):
-            print '%d / %d : %s = %d' % (i, sampleCount, file, classId)
-
-        img = Image.open(file)
-        data.append(np.array(img))
-        label.append(classId)
-
-    # label : m x 1 nparray
-    # oneHot : m x classes nparray of one hot code
-    data = np.array(data).reshape(-1, 32, 32, 3)
-    label = np.array(label)
-    # print '1'
-    oneHot = DenseToOneHot(label, classes)
-    # print '2'
-    print hist
-    print hist / np.sum(hist) * 100
-    # for i in range(22):
-    #     plt.subplot(1,2,1)
-    #     plt.imshow(data[0,:,:,:].reshape(height,width,3))
-    #     plt.subplot(1, 2, 2)
-    #     plt.imshow(labelOneHot[0,:,:,i].reshape(height,width))
-    #     plt.show()
-    return [data.astype(np.float32) / 255, oneHot.astype(np.float32)]
-
-
-# gpu memory restricion
-# gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.5)
-# sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
-
-def LoadDB(path,pickleLoad = False):
-    # startTime = time.time()
-    if (pickleLoad == False):
-        trX, trY = LoadTrainingData(path + '/train.txt')
-        teX, teY = LoadTrainingData(path + '/val.txt')
-
-        with open(path + '/db.pkl','wb') as fp:
-            pkl.dump(trX, fp)
-            pkl.dump(trY, fp)
-            pkl.dump(teX, fp)
-            pkl.dump(teY, fp)
-    else:
-        with open(path + '/db.pkl','rb') as fp:
-            trX = pkl.load(fp)
-            trY = pkl.load(fp)
-            teX = pkl.load(fp)
-            teY = pkl.load(fp)
-    # print trX.shape, teX.shape
-
-    # print (time.time() - startTime), ' sec'
-    return trX, trY, teX, teY
-
-# random pick some negative samples
-# return split list of pos + partial neg samples
-def PickNegativeSample(trXFull, trYFull):
-    pos = trXFull[trYFull[:,0]==0,:,:,:]
-    poslabel = trYFull[trYFull[:, 0] == 0, :]
-    neg = trXFull[trYFull[:,0]==1,:,:,:]
-    neglabel = trYFull[trYFull[:,0]==1,:]
-    posCount = pos.shape[0]
-    negCount = neg.shape[0]
-    assert(posCount + negCount == trXFull.shape[0])
-    # set negative batch to pos * 2
-    batchSize = posCount * 2
-
-
-    pickIndex = np.random.permutation(neg.shape[0])
-
-    trXList = []
-    trYList = []
-    for start, end in zip(range(0, negCount, batchSize), range(batchSize, negCount, batchSize)):
-        batchIndex = pickIndex[start:end]
-        negPick = neg[batchIndex, :,:,:]
-        neglabelPick = neglabel[batchIndex,:]
-        trXList.append(np.concatenate((pos, negPick), axis=0))
-        trYList.append(np.concatenate((poslabel, neglabelPick), axis=0))
-
-    print 'Pick negatives : pos %d, neg (%d / %d) * %d' % (posCount, batchSize, negCount, len(trXList))
-    return trXList, trYList
-
 def Prediction(testX, testY, batchSize):
     valLoss = []
     valAcc = []
@@ -222,12 +131,9 @@ def Prediction(testX, testY, batchSize):
     return np.mean(valLoss), np.mean(valAcc) # , np.mean(valAccPos)
 
 
-savePath = 'snapshot10000'
-os.makedirs(savePath)
-# X : m x w x h x 3
-# Y : m x classes
-trXFull, trYFull, teX, teY = LoadDB('data/CroppedSmall10000/')
-trXList, trYList = PickNegativeSample(trXFull, trYFull)
+
+
+
 
 print 'Full Train data :', trXFull.shape
 print 'Val data :', teX.shape
