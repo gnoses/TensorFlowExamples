@@ -17,9 +17,9 @@ import scipy.io as sio
 # import matplotlib.pyplot as plt
 
 weights = []
-classes = 11
+classes = 2
 count = [0,0,0,0,0,0,0,0,0,0,0,0]
-stride = 3
+stride = 5
 
 # labels_dense : m x 1
 # output : m x num_classes
@@ -87,12 +87,12 @@ def ModelVGGLike(X,is_training):
                            strides=[1, 2, 2, 1], padding='SAME')
 
     conv2 = ConvBNRelu(conv1, 3, 128, is_training)
-    conv2 = ConvBNRelu(conv1, 3, 128, is_training)
+    conv2 = ConvBNRelu(conv2, 3, 128, is_training)
     conv2 = tf.nn.max_pool(conv2, ksize=[1, 2, 2, 1],
                            strides=[1, 2, 2, 1], padding='SAME')
 
     conv3 = ConvBNRelu(conv2, 3, 128, is_training)
-    conv3 = ConvBNRelu(conv2, 3, 128, is_training)
+    conv3 = ConvBNRelu(conv3, 3, 128, is_training)
     conv3 = tf.nn.max_pool(conv3, ksize=[1, 2, 2, 1],
                            strides=[1, 2, 2, 1], padding='SAME')
 
@@ -134,8 +134,8 @@ def ExaustiveSearch(sess, imgData, gtList, stride):
     width = gtList[0][4]
     height = gtList[0][5]
     # print gtList
-    data = None
-    label = []
+    # data = None
+    # label = []
     imgDetect = imgData.copy()
     drawDetect = ImageDraw.Draw(imgDetect)
     for row in range(0,imgData.size[1]-height-1,stride):
@@ -169,12 +169,12 @@ def ExaustiveSearch(sess, imgData, gtList, stride):
             # crop and resize target patch
             patch = ExtractPatch(imgData, (col, row, col + width, row + height))
             rgb = np.array(patch).reshape(1, patch.size[1], patch.size[0], 3).astype(np.float32) / 255
-            if data == None:
-                data = rgb
-            else:
-                data = np.concatenate((data, rgb), axis=0)
-
-            label.append(classId)
+            # if data == None:
+            #     data = rgb
+            # else:
+            #     data = np.concatenate((data, rgb), axis=0)
+            #
+            # label.append(classId)
 
             pred = sess.run(predict_op, feed_dict={X: rgb, is_training: False})
             # acc = sess.run(acc_op, feed_dict={X: teX, Y: teY, is_training: False})
@@ -184,7 +184,7 @@ def ExaustiveSearch(sess, imgData, gtList, stride):
                 draw.rectangle([(col, row), (col + width, row + height)], outline=(255, 255, 255))
             if pred > 0:
                 drawDetect.rectangle([(col,row),(col+width,row+height)],outline=(0,255,0))
-                drawDetect.text((col,row), '%d' % pred)
+                # drawDetect.text((col,row), '%d' % pred)
 
             if (0):
                 plt.clf()
@@ -201,13 +201,16 @@ def ExaustiveSearch(sess, imgData, gtList, stride):
     if (1):
         plt.clf()
         plt.ioff()
+        plt.subplot(1,2,1)
+        plt.imshow(imgData)
+        plt.subplot(1, 2, 2)
         plt.imshow(imgDetect)
         # plt.title(iou)
         plt.pause(1)
 
-    label = np.array(label)
-    oneHot = DenseToOneHot(label, classes)
-    return [data.astype(np.float32) / 255, oneHot.astype(np.float32)]
+    # label = np.array(label)
+    # oneHot = DenseToOneHot(label, classes)
+    # return [data.astype(np.float32) / 255, oneHot.astype(np.float32)]
 
 def LoadImage(digitStruct, i, sess):
     info = (digitStruct['digitStruct'][0])[i]
@@ -254,8 +257,8 @@ def LoadImage(digitStruct, i, sess):
     return ExaustiveSearch(sess, imgData, gtList, stride)
 
 # load full resolution image for detection
-pathLoad = 'data/OriginalSmall/train/'
-savePath = 'snapshot'
+pathLoad = 'data/Original/train/'
+savePath = 'snapshot10000'
 digitStruct = sio.loadmat(pathLoad + 'digitStruct.mat')
 sampleCount = digitStruct['digitStruct'].shape[1]
 print 'Load %d data' % sampleCount
@@ -318,9 +321,10 @@ with tf.Session() as sess:
         # X : m x w x h x 3
         # Y : m x classes
         # print digitStruct, i
-        teX, teY = LoadImage(digitStruct, i, sess)
-        if teX == None:
-            continue
+        # teX, teY = LoadImage(digitStruct, i, sess)
+        LoadImage(digitStruct, i, sess)
+        # if teX == None:
+        #     continue
 
         # print i, acc
 
