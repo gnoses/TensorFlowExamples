@@ -179,7 +179,7 @@ def CreateDB(pathLoad, savePath,trainingDataCount = 0):
         LoadImage(lmdbWriter, info)
 
 startTime = time.time()
-trainingDataCount = 10000
+trainingDataCount = 100
 if (trainingDataCount == 0):
     savePath = 'data/CroppedFullLMDB/train'
 else:
