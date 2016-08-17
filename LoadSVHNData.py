@@ -11,15 +11,24 @@ def DenseToOneHot(labels_dense, num_classes):
     labels_one_hot.flat[index_offset + labels_dense.ravel()] = 1
     return labels_one_hot
 
-def LoadData(pathLoad, classes):
+def LoadLMDBData(pathLoad, classes):
     lmdbToolReadTrain = LMDBTool(pathLoad + '/train', 1000, False)
     trXFull, label = lmdbToolReadTrain.Get(32,32,3)
+    trXFull = trXFull.astype(np.float) / 255
+    label[label>0] = 1
     trYFull = DenseToOneHot(label, classes)
-    lmdbToolReadVal = LMDBTool('data/CroppedSmall1000LMDB/val', 1000, False)
+    posCount = label[label > 0].shape[0]
+    allCount = label.shape[0]
+    print 'Load data train : Pos %d, Neg %d, All %d' % (posCount, allCount - posCount, allCount)
+
+    lmdbToolReadVal = LMDBTool(pathLoad + '/val', 1000, False)
     teX, label = lmdbToolReadVal.Get(32,32,3)
+    teX = teX.astype(np.float) / 255
+    label[label>0] = 1
     teY = DenseToOneHot(label, classes)
-    print 'Load data train : ', trXFull.shape, trYFull.shape
-    print 'Load data val : ', teX.shape, teY.shape
+    posCount = label[label > 0].shape[0]
+    allCount = label.shape[0]
+    print 'Load data val : Pos %d, Neg %d, All %d ' % (posCount, allCount - posCount, allCount)
     return trXFull, trYFull, teX, teY
 
 
