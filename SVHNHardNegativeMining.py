@@ -5,13 +5,16 @@
 import os
 from LoadData import *
 import shutil
+from ROCCurve import *
+from LMDBTool import LMDBTool
 
 classes = 2
 # X : m x w x h x 3
 # Y : m x classes
 
 # cool lmdb
-trXFull, trYFull, teX, teY = LoadLMDBData('data/CroppedSmall10000LMDB/', classes)
+trXFull, trYFull, teX, teY = LoadLMDBData('data/CroppedSmall1000LMDB/', classes)
+
 savePath = 'snapshot100'
 try:
     os.makedirs(savePath)
@@ -82,6 +85,7 @@ def ModelSimple(X, is_training):
                            is_training, scope='bn3'), name='lrelu3')
     h_3_flat = tf.reshape(h_3, [-1, 64 * 4 * 4])
     return linear(h_3_flat, 10)
+
 def ModelVGGLikeSmall(X,is_training):
     conv1 = ConvBNRelu(X, 3, 32, is_training)
     conv1 = tf.nn.max_pool(conv1, ksize=[1, 2, 2, 1],
@@ -138,20 +142,18 @@ def Prediction(testX, testY, batchSize):
 
     return np.mean(valLoss), np.mean(valAcc) # , np.mean(valAccPos)
 
-
 class ResultManager:
     count = 0
     imgList = np.array([]).reshape(0,32,32,3)
     scoreList = np.array([]).reshape(0,1)
     labelList = np.array([]).reshape(0,1)
     npImages = None
-    def Add(self, index, batchData, batchLabel, batchProb):
+    def Add(self, batchData, batchProb, batchLabel):
         # no elements
-        if (np.sum(index.astype(np.int8)) > 0):
-            self.imgList = np.vstack([self.imgList, batchData[index, :, :, :]])
-            self.scoreList = np.vstack([self.scoreList, batchProb[index].reshape(-1,1)])
-            labelDense = np.argmax(batchLabel, axis=1)
-            self.labelList = np.vstack([self.labelList, labelDense[index].reshape(-1,1)])
+        if (batchLabel.shape[0] > 0):
+            self.imgList = np.vstack([self.imgList, batchData])
+            self.scoreList = np.vstack([self.scoreList, batchProb.reshape(-1,1)])
+            self.labelList = np.vstack([self.labelList, batchLabel.reshape(-1, 1)])
 
     def SaveImage(self, path):
         try:
@@ -173,10 +175,24 @@ class ResultManager:
             npImage = self.imgList[i, :, :, :].astype(np.uint8)
             img = Image.fromarray(npImage)
             confidence = np.int8(scores[i] * 100)
-            if (self.labelList[i,0] == 1):
-                img.save(path + '/%05d_%d_Pos.png' % (confidence, i))
+            if (self.scoreList[i,0] >= 0.5):
+                img.save(path + '/%05d_%d_PosPred.png' % (confidence, i))
             else:
-                img.save(path + '/%05d_%d_Neg.png' % (confidence, i))
+                img.save(path + '/%05d_%d_NegData.png' % (confidence, i))
+
+    def SaveLMDB(self, path):
+        images = self.imgList
+        scores = self.scoreList
+        label = self.labelList
+        print images.shape
+        self.npImages = images
+        self.count = images.shape[0]
+        lmdbTool = LMDBTool(path, 1000, True)
+        for i in range(images.shape[0]):
+            npImage = self.imgList[i, :, :, :].astype(np.uint8)
+            # img = Image.fromarray(npImage)
+            lmdbTool.Put(npImage, label[i])
+        lmdbTool.Flush()
 
 # collect hard negative training samples
 # 1. collect false positive as negatives
@@ -188,8 +204,10 @@ def HardNegativeMining(testX, testY, batchSize):
     result['HardNegative'] = ResultManager()
 
     imgCount = 0
-    for start, end in zip(range(0, len(testX), batchSize), range(batchSize, len(testX), batchSize)):
-        if (end >= len(testX)):
+    rocData = ROCData()
+
+    for start, end in zip(range(0, testX.shape[0], batchSize), range(batchSize, (testX.shape[0] + batchSize), batchSize)):
+        if (end > len(testX)):
             end = len(testX)
         batchData = testX[start:end]
         batchLabel = testY[start:end]
@@ -202,12 +220,21 @@ def HardNegativeMining(testX, testY, batchSize):
         # index1 = np.logical_and((correct == False), (pred == 1))
 
         # 2. rare negatives
-        thr = 0.95
+        thr = 1.0
         index = np.logical_and((batchLabel[:,0] == 1), (prob[:,0] < thr))
-        result['HardNegative'].Add(index, batchData, batchLabel, prob[:,0])
+        result['HardNegative'].Add(batchData[index,:,:,:], batchLabel[index,0], prob[index,0])
+        # tp only
+        # rocData.Add(batchLabel[index, 1], prob[index, 1])
 
-        index = (pred == 1)
-        result['PositivePrediction'].Add(index, batchData, batchLabel, prob[:, 1])
+        index = (prob[:,1] >= 0.5)
+        # print index.shape
+        result['PositivePrediction'].Add(batchData[index,:,:,:], batchLabel[index,1], prob[index, 1])
+        # print batchLabel[index, 1]
+        # print prob[index, 1]
+
+
+        # all data
+        rocData.Add(batchLabel[:,1], prob[:,1])
 
         if (0):
             sel = 0
@@ -220,15 +247,15 @@ def HardNegativeMining(testX, testY, batchSize):
 
             # pick hard negative
             # correctPos = correct[testY[start:end][0] != 0]
-    # result['PositivePrediction'].Save('ResultImage/TruePositives')
-    result['HardNegative'].SaveImage('ResultImage/HardNegative')
-    result['PositivePrediction'].SaveImage('ResultImage/PositivePrediction')
-
+    # result['HardNegative'].SaveImage('ResultImage/HardNegative')
+    # result['PositivePrediction'].SaveImage('ResultImage/PositivePrediction')
+    result['HardNegative'].SaveLMDB('data/HardNegative')
+    rocData.PlotROCCurve()
     # print result['HardNegative'].count
     # hardNegatives, hardNegativeScores = ConvertListToNdarray(hardNegativeList, hardNegativeScoreList)
     # positives, positiveScores= ConvertListToNdarray(positiveList, positiveScoreList)
 
-    print 'Pos %d, HardNeg %d, All %d' % (result['HardNegative'].count, result['PositivePrediction'].count, imgCount)
+    print 'Pos %d, HardNeg %d, All %d' % (result['PositivePrediction'].count, result['HardNegative'].count, imgCount)
 
     # SaveImage(hardNegatives, hardNegativeScores, 'ResultImage/HardNegative')
     # SaveImage(positives, positiveScores, 'ResultImage/TruePositives')
