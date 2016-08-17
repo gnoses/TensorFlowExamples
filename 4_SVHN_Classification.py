@@ -7,7 +7,7 @@ from LoadData import *
 classes = 2
 # X : m x w x h x 3
 # Y : m x classes
-db = 0
+db = 1000
 # cool lmdb
 if db == 0:
     trXFull, trYFull, teX, teY = LoadLMDBData('data/CroppedFullLMDB/', classes)
