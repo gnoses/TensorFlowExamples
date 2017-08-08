@@ -50,6 +50,10 @@ def Process(epoch, ds):
     generator = ds.get_data()
     for i, k in enumerate(generator):
         # print i, k[3]
+        # img = k[0]
+        # img2 = k[1]
+        # label = k[3]
+        # filename = k[4]
         pass
     print i, ' ea, ', time.time() - startTime, ' sec'
 
