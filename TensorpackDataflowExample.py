@@ -40,9 +40,9 @@ class CustomDataset(RNGDataFlow):
             
             yield [im, img2, label, fname]
 
-    def Reset(self):
+    def Reset(self, process):
         self.reset_state()
-        return PrefetchDataZMQ(self, 4)
+        return PrefetchDataZMQ(self, process)
 
 def Process(epoch, ds):
     print('#epoch : %d' % (epoch)),
@@ -55,7 +55,8 @@ def Process(epoch, ds):
 if __name__ == '__main__':
     
     ds = CustomDataset('yourdatasetpath/train.txt')
-    ds.reset_state()
+    NUMBER_OF_PROCESS = 4
+    ds = ds.Reset(NUMBER_OF_PROCESS)
     size = ds.size()
     
     for epoch in range(10):
