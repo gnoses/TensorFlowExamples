@@ -8,13 +8,11 @@ from skimage.transform import resize
 from tensorpack import *
 from tensorpack.tfutils.symbolic_functions import *
 import PIL.Image as Image
-
-
-__all__ = ['CustomDataset']
+from skimage import exposure
 
 
 class CustomDataset(RNGDataFlow):
-    def __init__(self, dir):
+    def __init__(self, dir, targetClass):
         self.imglist = []
         lines = open(dir, 'rt').readlines()
         for line in lines:
@@ -22,8 +20,10 @@ class CustomDataset(RNGDataFlow):
             data = token[0]
             pixellabel = token[1]
             cls = int(token[2].strip('\n'))
-            if cls > 0:
+            if cls == targetClass:
                 cls = 1
+            else:
+                cls = 0
             self.imglist.append((data, pixellabel, cls))
 
     def size(self):
@@ -33,36 +33,52 @@ class CustomDataset(RNGDataFlow):
         idxs = np.arange(len(self.imglist))
         #if self.shuffle:
         self.rng.shuffle(idxs)
+
         for k in idxs:
-            fname, fname2, label = self.imglist[k]    
-            im = imread(fname)    
-            img2 = Image.open(fname2)    
-            
-            yield [im, img2, label, fname]
+            fname, fname2, label = self.imglist[k]
 
-    def Reset(self, process):
-        self.reset_state()
-        return PrefetchDataZMQ(self, process)
+            #fname = os.path.join(self.full_dir, fname)
 
-def Process(epoch, ds):
-    print('#epoch : %d' % (epoch)),
-    startTime = time.time()
-    generator = ds.get_data()
-    for i, k in enumerate(generator):
-        # print i, k[3]
-        # img = k[0]
-        # img2 = k[1]
-        # label = k[3]
-        # filename = k[4]
-        pass
-    print i, ' ea, ', time.time() - startTime, ' sec'
+            # im = cv2.imread(fname)
+            im = imread(fname)
+            # im = resize(im, (512,512))
+            #print '!!!!', im.shape
+            im = exposure.equalize_hist(im)
+            im = im.reshape((1,512,512,1))
+
+            img2 = Image.open(fname2)
+            # img2 = np.array(img2.resize((512,512), Image.NEAREST))
+            img2 = np.array(img2)
+            img2 = img2.reshape((1,512, 512))
+
+            assert im is not None, fname
+            #if im.ndim == 2:
+            #    im = np.expand_dims(im, 2).repeat(3, 2)
+            label = np.array(label).reshape((1,))
+            yield [im, img2,label,fname]
+
+def Reset(ds2, process):
+    ds2.reset_state()
+    return PrefetchDataZMQ(ds2, process)
+    # dftools.dump_dataflow_to_lmdb(ds2, 'temp.lmdb')
+
+def Dump(ds2, filename):
+    dftools.dump_dataflow_to_lmdb(ds2, filename)
+
+def LoadLMDB(filename, process):
+    ds = LMDBData(filename, shuffle=False)
+    ds = LocallyShuffleData(ds, 1000)
+    ds = PrefetchDataZMQ(ds, process)
+    ds = LMDBDataPoint(ds)
+    return ds
 
 if __name__ == '__main__':
-    
-    ds = CustomDataset('yourdatasetpath/train.txt')
-    NUMBER_OF_PROCESS = 4
-    ds = ds.Reset(NUMBER_OF_PROCESS)
-    size = ds.size()
-    
-    for epoch in range(10):
-        Process(epoch, ds)
+    #meta = ILSVRCMeta()
+    # print(meta.get_synset_words_1000())
+
+    ds = CustomDataset('/home1/gnoses/Dataset/AsanLungDisease/PixelLabel/asanStrongLabelClassification512x512/train6class.txt')
+    ds2 = Reset(ds)
+
+    for k in ds.get_data():
+        print k
+        break
