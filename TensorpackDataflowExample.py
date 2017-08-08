@@ -82,3 +82,11 @@ if __name__ == '__main__':
     for k in ds.get_data():
         print k
         break
+        
+# performance evaluation
+# 512x512 11250 data 1 epoch
+# 1 process : 702 sec
+# 4 process : 496 sec
+# 8 process : 341 sec
+# Dumped lmdb!!!
+# 4 process : 70 sec
