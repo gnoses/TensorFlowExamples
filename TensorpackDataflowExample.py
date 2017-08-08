@@ -44,14 +44,18 @@ class CustomDataset(RNGDataFlow):
         self.reset_state()
         return PrefetchDataZMQ(self, 4)
 
+def Process(epoch):
+    print('#epoch : %d' % (epoch)),
+    generator = ds.get_data()
+    for i, k in enumerate(generator):
+        # print i, k[3]
+        pass
+    print i
+
 if __name__ == '__main__':
     
     ds = CustomDataset('yourdatasetpath/train.txt')
     ds.reset_state()
     size = ds.size()
-    for epoch in range(10):
-        print('#epoch : %d' % (epoch)),
-        for i, k in enumerate(ds.get_data()):
-             #print i, k[3]
-            pass
-        print i
+        for epoch in range(10):
+        Process(epoch)
