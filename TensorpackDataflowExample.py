@@ -57,5 +57,6 @@ if __name__ == '__main__':
     ds = CustomDataset('yourdatasetpath/train.txt')
     ds.reset_state()
     size = ds.size()
-        for epoch in range(10):
+    
+    for epoch in range(10):
         Process(epoch)
