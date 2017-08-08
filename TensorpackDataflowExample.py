@@ -76,13 +76,20 @@ if __name__ == '__main__':
     #meta = ILSVRCMeta()
     # print(meta.get_synset_words_1000())
 
-    ds = CustomDataset('/home1/gnoses/Dataset/AsanLungDisease/PixelLabel/asanStrongLabelClassification512x512/train6class.txt')
-    ds2 = Reset(ds)
+    ds = CustomDataset('yourdatapath/train.txt')
+    ds2 = Reset(ds, 4)
 
     for k in ds.get_data():
         print k
         break
         
+    # LMDB 
+    ds = CustomDataset('yourdatapath/train.txt')
+    ds2 = Reset(ds, 4)
+    Dump(ds2, 'mydataTrain.lmdb')
+        
+    ds2 = LoadLMDB( 'mydataTrain.lmdb', 4)
+    
 # performance evaluation
 # 512x512 11250 data 1 epoch
 # 1 process : 702 sec
