@@ -46,11 +46,12 @@ class CustomDataset(RNGDataFlow):
 
 def Process(epoch, ds):
     print('#epoch : %d' % (epoch)),
+    startTime = time.time()
     generator = ds.get_data()
     for i, k in enumerate(generator):
         # print i, k[3]
         pass
-    print i
+    print i, ' ea, ', time.time() - startTime, ' sec'
 
 if __name__ == '__main__':
     
